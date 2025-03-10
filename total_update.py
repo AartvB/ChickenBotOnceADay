@@ -5,12 +5,38 @@ import praw
 import sqlite3
 import pandas as pd
 import pytz
-import schedule
 import time
 from datetime import datetime, timezone, timedelta
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email_info import email_data
 
 reddit = praw.Reddit('bot1')
 reddit.validate_on_submit = True
+
+def send_email(subject, body):
+    user = email_data()['account']
+    password = email_data()['password']
+    to_email = email_data()['receiver']
+
+    # Create email message
+    msg = MIMEMultipart()
+    msg["From"] = user
+    msg["To"] = to_email
+    msg["Subject"] = subject
+    msg.attach(MIMEText(body, "plain"))
+
+    # Connect to Gmail SMTP server and send email
+    try:
+        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server.starttls()
+        server.login(user, password)
+        server.sendmail(user, to_email, msg.as_string())
+        server.quit()
+        print("Email sent successfully!")
+    except Exception as e:
+        print(f"Error sending email: {e}")
 
 def find_streaks():
     print("Checking using flair")
@@ -25,9 +51,8 @@ def find_streaks():
     
     conn.close()
 
-    
-    # Get the current time in UTC
-    now = datetime.utcnow()
+    # Get the current time
+    now = datetime.now()
     
     # Create a dictionary mapping UTC offsets to a representative timezone
     timezones = {
@@ -248,7 +273,9 @@ def update_target_post():
 
                 if not approved:
                     print(f"Invalid post detected: {submission.title}")
-            
+
+                    send_email('Removed post', f'I removed post {submission.title} because it did not use the correct number. You can find the post here: {submission.url}.')
+
                     # Leave a comment explaining the removal
                     comment_text = (
                         f"This post has been removed because the correct next number was {current_count + 1}, but this post is {post_number}.\nPlease check the most recent number before posting.\nIt might be possible that someone else simply was slightly faster with their post.\nFeel free to post again with the correct new number."
@@ -257,11 +284,14 @@ def update_target_post():
             
                     # Remove the incorrect post
                     submission.mod.remove()
+
                 else:
                     current_count = post_number
                 conn.close()
         else:
             print(f"Non-numeric post detected: {submission.title}")
+
+            send_email('Removed post', f'I removed post {submission.title} because it did not use a number. You can find the post here: {submission.url}.')
 
             # Leave a comment explaining the removal
             comment_text = "This post has been removed because the title must be a number. Please only post the next number in sequence."
@@ -278,13 +308,54 @@ find_streaks()
 update_flair()
 update_target_post()
 
+n_errors = {'execution': {'first_error':0,'n':0}, 'stream': {'first_error':0,'n':0}}
+
 # Use the streaming method to continuously check for new submissions
-for submission in subreddit.stream.submissions(skip_existing=True):
+while True:
     try:
-        update_target_post()
-        find_streaks()
-        update_flair()
-        update_target_post()
+        for submission in subreddit.stream.submissions(skip_existing=True):
+            if n_errors['stream']['n'] > 0:
+                send_email('Stream error solved',f'{n_errors['stream']['n']-1} additional stream errors have happened, but an execution has started without any errors now, so the stream error has been solved.')
+                n_errors['stream']['first_error'] = 0
+                n_errors['stream']['n'] = 0
+
+            try:
+                update_target_post()
+                find_streaks()
+                update_flair()
+                update_target_post()
+
+                if n_errors['execution']['n'] > 0:
+                    send_email('Execution error solved',f'{n_errors['execution']['n']-1} additional execution errors have happened, but an execution has happened without any errors now, so the error has been solved.')
+                    n_errors['execution']['first_error'] = 0
+                    n_errors['execution']['n'] = 0
+
+            except Exception as e:
+                error_count = n_errors['execution']['n']
+                if error_count == 0:
+                    send_email('Execution error',f'An execution error occurred. Error message:\n{e}')
+                    n_errors['execution']['first_error'] = time.time()
+                    n_errors['execution']['n'] = 1
+                elif n_errors['execution']['first_error'] < time.time() - 5*60: # Send explanation email every 5 minutes
+                    send_email('Execution error',f'Multiple {error_count} execution errors have occurred since last message, and they are still not solved. Latest error message:\n{e}')
+                    n_errors['execution']['first_error'] = time.time()
+                    n_errors['execution']['n'] = 1
+                else:
+                    n_errors['execution']['n'] += 1
+
+                print(f"Error in execution: {e}")
+                continue  # Keep running if an error occurs
     except Exception as e:
-        print(f"Error: {e}")
-        continue  # Keep running if an error occurs
+        error_count = n_errors['stream']['n']
+        if error_count == 0:
+            send_email('Stream error',f'A stream error occurred. Error message:\n{e}')
+            n_errors['stream']['first_error'] = time.time()
+            n_errors['stream']['n'] = 1
+        elif n_errors['stream']['first_error'] < time.time() - 5*60: # Send explanation email every 5 minutes
+            send_email('Stream error',f'Multiple {error_count} stream errors have occurred since last message, and they are still not solved. Latest error message:\n{e}')
+            n_errors['stream']['first_error'] = time.time()
+            n_errors['stream']['n'] = 1
+        else:
+            n_errors['stream']['n'] += 1
+
+        print(f"Error in submission stream: {e}")

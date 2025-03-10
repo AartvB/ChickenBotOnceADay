@@ -1,2 +1,4 @@
 *.db
 praw.ini
+email_info.py
+__pycache__*

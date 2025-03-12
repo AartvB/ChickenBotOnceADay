@@ -69,7 +69,7 @@ def find_streaks():
     user_no = 1
 
     # Process each user separately
-    for user in users:
+    for user in users:            
 #        if user != "-MegaMan401-": # TODO!
 #            continue
             
@@ -210,6 +210,9 @@ def update_flair():
         
         reddit_username, user_streak = user_data
         user_flair = "Current streak: " + str(user_streak)
+        if reddit_username == "chickenbotonceaday":
+            user_flair = "Current streak: 3.1415926535"
+
         try:
             # Check if the user exists in the subreddit
             user = reddit.redditor(reddit_username)
@@ -248,7 +251,7 @@ def update_target_post():
 
             if post_number == current_count + 1 or new_check:
                 current_count = post_number
-                text = f"The next number should be: [{post_number + 1}](https://www.reddit.com/r/countwithchickenlady/submit?title={post_number + 1})\n\nNote that this post is made by a bot, and can make mistakes. In that case, sort by 'New' and check what number should be next."
+                text = f"The next number should be: [{post_number + 1}](https://www.reddit.com/r/countwithchickenlady/submit?title={post_number + 1})\n\n^(This comment is automatically updated by a bot. If you think It made a mistake, contact the mods via modmail. The code for this bot is fully open source, and can be found [here](https://github.com/AartvB/ChickenBotOnceADay).)"
                 target_post.edit(text)
         
                 # Add new post to database
@@ -278,7 +281,7 @@ def update_target_post():
 
                     # Leave a comment explaining the removal
                     comment_text = (
-                        f"This post has been removed because the correct next number was {current_count + 1}, but this post is {post_number}.\nPlease check the most recent number before posting.\nIt might be possible that someone else simply was slightly faster with their post.\nFeel free to post again with the correct new number."
+                        f"This post has been removed because the correct next number was {current_count + 1}, but this post is {post_number}.\nPlease check the most recent number before posting.\nIt might be possible that someone else simply was slightly faster with their post.\nFeel free to post again with the correct new number.\n^(This action was performed automatically by a bot. If you think it made a mistake, contact the mods via modmail. The code for this bot is fully open source, and can be found [here](https://github.com/AartvB/ChickenBotOnceADay).)"
                     )
                     submission.reply(comment_text)
             
@@ -294,7 +297,7 @@ def update_target_post():
             send_email('Removed post', f'I removed post {submission.title} because it did not use a number. You can find the post here: {submission.url}.')
 
             # Leave a comment explaining the removal
-            comment_text = "This post has been removed because the title must be a number. Please only post the next number in sequence."
+            comment_text = "This post has been removed because the title must be a number. Please only post the next number in sequence.\n^(This action was performed automatically by a bot. If you think it made a mistake, contact the mods via modmail. The code for this bot is fully open source, and can be found [here](https://github.com/AartvB/ChickenBotOnceADay).)"
             submission.reply(comment_text)
 
             # Remove the incorrect post
@@ -308,14 +311,18 @@ find_streaks()
 update_flair()
 update_target_post()
 
-n_errors = {'execution': {'first_error':0,'n':0}, 'stream': {'first_error':0,'n':0}}
+n_errors = {'execution': {'first_error':0,'n':0,'last_message':'','first_ever_error':0}, 'stream': {'first_error':0,'n':0,'last_message':'','first_ever_error':0}}
 
 # Use the streaming method to continuously check for new submissions
 while True:
     try:
         for submission in subreddit.stream.submissions(skip_existing=True):
             if n_errors['stream']['n'] > 0:
-                send_email('Stream error solved',f'{n_errors['stream']['n']-1} additional stream errors have happened, but an execution has started without any errors now, so the stream error has been solved.')
+                utc_time = datetime.fromtimestamp(n_errors['stream']['first_ever_error'])
+                local_time = utc_time.astimezone(pytz.timezone('Europe/Amsterdam'))
+                time_first_error = local_time.strftime('%Y-%m-%d %H:%M:%S %Z')
+        
+                send_email('Stream error solved',f'{n_errors['stream']['n']-1} additional stream errors have happened, but an execution has started without any errors now, so the stream error has been solved. The first error occured at {time_first_error}. Latest error message:\n\n{n_errors['stream']['last_message']}')
                 n_errors['stream']['first_error'] = 0
                 n_errors['stream']['n'] = 0
 
@@ -326,18 +333,24 @@ while True:
                 update_target_post()
 
                 if n_errors['execution']['n'] > 0:
-                    send_email('Execution error solved',f'{n_errors['execution']['n']-1} additional execution errors have happened, but an execution has happened without any errors now, so the error has been solved.')
+                    utc_time = datetime.fromtimestamp(n_errors['execution']['first_ever_error'])
+                    local_time = utc_time.astimezone(pytz.timezone('Europe/Amsterdam'))
+                    time_first_error = local_time.strftime('%Y-%m-%d %H:%M:%S %Z')
+
+                    send_email('Execution error solved',f'{n_errors['execution']['n']-1} additional execution errors have happened, but an execution has happened without any errors now, so the error has been solved. The first error occured at {time_first_error}. Latest error message:\n\n{n_errors['execution']['last_message']}')
                     n_errors['execution']['first_error'] = 0
                     n_errors['execution']['n'] = 0
 
             except Exception as e:
                 error_count = n_errors['execution']['n']
+                n_errors['execution']['last_message'] = e
                 if error_count == 0:
                     send_email('Execution error',f'An execution error occurred. Error message:\n{e}')
+                    n_errors['execution']['first_ever_error'] = time.time()
                     n_errors['execution']['first_error'] = time.time()
                     n_errors['execution']['n'] = 1
                 elif n_errors['execution']['first_error'] < time.time() - 5*60: # Send explanation email every 5 minutes
-                    send_email('Execution error',f'Multiple {error_count} execution errors have occurred since last message, and they are still not solved. Latest error message:\n{e}')
+                    send_email('Execution error',f'Multiple {error_count} execution errors have occurred since last message, and they are still not solved. Latest error message:\n\n{e}')
                     n_errors['execution']['first_error'] = time.time()
                     n_errors['execution']['n'] = 1
                 else:
@@ -347,12 +360,14 @@ while True:
                 continue  # Keep running if an error occurs
     except Exception as e:
         error_count = n_errors['stream']['n']
+        n_errors['stream']['last_message'] = e
         if error_count == 0:
             send_email('Stream error',f'A stream error occurred. Error message:\n{e}')
+            n_errors['stream']['first_ever_error'] = time.time()
             n_errors['stream']['first_error'] = time.time()
             n_errors['stream']['n'] = 1
         elif n_errors['stream']['first_error'] < time.time() - 5*60: # Send explanation email every 5 minutes
-            send_email('Stream error',f'Multiple {error_count} stream errors have occurred since last message, and they are still not solved. Latest error message:\n{e}')
+            send_email('Stream error',f'Multiple {error_count} stream errors have occurred since last message, and they are still not solved. Latest error message:\n\n{e}')
             n_errors['stream']['first_error'] = time.time()
             n_errors['stream']['n'] = 1
         else:

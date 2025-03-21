@@ -3,8 +3,8 @@ import pandas as pd
 import pytz
 from datetime import datetime, timedelta
 
-user = "username"
-tz_name = "timezone_name"
+user = input("The user is named: ")
+tz_name = input("The timezone is named: ")
 
 conn = sqlite3.connect("reddit_posts.db")
 df = pd.read_sql("SELECT * FROM posts WHERE username = ?", conn, params=(user,))

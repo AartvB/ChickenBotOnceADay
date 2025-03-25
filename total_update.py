@@ -326,38 +326,40 @@ while True:
                 n_errors['stream']['first_error'] = 0
                 n_errors['stream']['n'] = 0
 
-            try:
-                update_target_post()
-                find_streaks()
-                update_flair()
-                update_target_post()
+            while True:
+                try:
+                    update_target_post()
+                    find_streaks()
+                    update_flair()
+                    update_target_post()
 
-                if n_errors['execution']['n'] > 0:
-                    utc_time = datetime.fromtimestamp(n_errors['execution']['first_ever_error'])
-                    local_time = utc_time.astimezone(pytz.timezone('Europe/Amsterdam'))
-                    time_first_error = local_time.strftime('%Y-%m-%d %H:%M:%S %Z')
+                    if n_errors['execution']['n'] > 0:
+                        utc_time = datetime.fromtimestamp(n_errors['execution']['first_ever_error'])
+                        local_time = utc_time.astimezone(pytz.timezone('Europe/Amsterdam'))
+                        time_first_error = local_time.strftime('%Y-%m-%d %H:%M:%S %Z')
 
-                    send_email('Execution error solved',f'{n_errors['execution']['n']-1} additional execution errors have happened, but an execution has happened without any errors now, so the error has been solved. The first error occured at {time_first_error}. Latest error message:\n\n{n_errors['execution']['last_message']}')
-                    n_errors['execution']['first_error'] = 0
-                    n_errors['execution']['n'] = 0
+                        send_email('Execution error solved',f'{n_errors['execution']['n']-1} additional execution errors have happened, but an execution has happened without any errors now, so the error has been solved. The first error occured at {time_first_error}. Latest error message:\n\n{n_errors['execution']['last_message']}')
+                        n_errors['execution']['first_error'] = 0
+                        n_errors['execution']['n'] = 0
+                    break
 
-            except Exception as e:
-                error_count = n_errors['execution']['n']
-                n_errors['execution']['last_message'] = e
-                if error_count == 0:
-                    send_email('Execution error',f'An execution error occurred. Error message:\n{e}')
-                    n_errors['execution']['first_ever_error'] = time.time()
-                    n_errors['execution']['first_error'] = time.time()
-                    n_errors['execution']['n'] = 1
-                elif n_errors['execution']['first_error'] < time.time() - 5*60: # Send explanation email every 5 minutes
-                    send_email('Execution error',f'Multiple {error_count} execution errors have occurred since last message, and they are still not solved. Latest error message:\n\n{e}')
-                    n_errors['execution']['first_error'] = time.time()
-                    n_errors['execution']['n'] = 1
-                else:
-                    n_errors['execution']['n'] += 1
+                except Exception as e:
+                    error_count = n_errors['execution']['n']
+                    n_errors['execution']['last_message'] = e
+                    if error_count == 0:
+                        send_email('Execution error',f'An execution error occurred. Error message:\n{e}')
+                        n_errors['execution']['first_ever_error'] = time.time()
+                        n_errors['execution']['first_error'] = time.time()
+                        n_errors['execution']['n'] = 1
+                    elif n_errors['execution']['first_error'] < time.time() - 5*60: # Send explanation email every 5 minutes
+                        send_email('Execution error',f'Multiple {error_count} execution errors have occurred since last message, and they are still not solved. Latest error message:\n\n{e}')
+                        n_errors['execution']['first_error'] = time.time()
+                        n_errors['execution']['n'] = 1
+                    else:
+                        n_errors['execution']['n'] += 1
 
-                print(f"Error in execution: {e}")
-                continue  # Keep running if an error occurs
+                    print(f"Error in execution: {e}")
+
     except Exception as e:
         error_count = n_errors['stream']['n']
         n_errors['stream']['last_message'] = e

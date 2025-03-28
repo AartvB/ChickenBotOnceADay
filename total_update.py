@@ -346,6 +346,7 @@ while True:
                         n_errors['execution']['n'] += 1
 
                     print(f"Error in execution: {e}")
+                    time.sleep(10)
 
     except Exception as e:
         error_count = n_errors['stream']['n']
@@ -363,3 +364,4 @@ while True:
             n_errors['stream']['n'] += 1
 
         print(f"Error in submission stream: {e}")
+        time.sleep(10)

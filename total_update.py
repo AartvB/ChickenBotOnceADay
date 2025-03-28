@@ -69,10 +69,7 @@ def find_streaks():
     user_no = 1
 
     # Process each user separately
-    for user in users:            
-#        if user != "-MegaMan401-": # TODO!
-#            continue
-            
+    for user in users:                        
         if user_no % 20 == 0:
             print(f"user {user_no} out of {len(users)}")
         user_no += 1
@@ -111,11 +108,6 @@ def find_streaks():
         
         for tz_name in timezones:
             tz = pytz.timezone(tz_name)
-
-#            if pytz.timezone(tz_name).utcoffset(now) == pytz.timezone('America/Argentina/Buenos_Aires').utcoffset(now): # TODO: These 4 lines
-#                print("same timezone")
-#            else:
-#                continue
     
             # Convert timestamp to the specific timezone
             df["local_time"] = df["timestamp"].dt.tz_convert(tz)
@@ -134,11 +126,7 @@ def find_streaks():
             today = datetime.now(tz).date()
             yesterday = (datetime.now(tz) - timedelta(days=1)).date()
 
-#            print('last_COAD_date') # TODO: These 2 lines
-#            print(last_COAD_date)
             for date in df["post_date"]:
-#                print('Current date') # TODO: These 2 lines
-#                print(date)
                 if date == today and last_date is None:
                     streak = 1
                     last_date = date
@@ -182,7 +170,6 @@ def find_streaks():
     conn.close()
 
     print("Finished checking using flair")
-#find_streaks()
 
 def update_flair():
     # Update user flair

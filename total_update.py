@@ -42,14 +42,13 @@ def find_streaks():
     print("Checking using flair")
     
     # Connect to the database
-    conn = sqlite3.connect("reddit_posts.db")
+    conn = sqlite3.connect("chicken_bot.db")
+    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
     # Fetch unique users
-    cursor.execute("SELECT DISTINCT username FROM posts")
-    users = [row[0] for row in cursor.fetchall()]
-    
-    conn.close()
+    cursor.execute("SELECT DISTINCT username FROM chicken_posts")
+    users = [row["username"] for row in cursor.fetchall()]
 
     # Get the current time
     now = datetime.now()
@@ -62,8 +61,7 @@ def find_streaks():
     
     # Extract a sorted list of unique timezone names
     timezones = sorted(timezones.values())
-
-    
+        
     longest_streaks = {}
     
     user_no = 1
@@ -72,20 +70,13 @@ def find_streaks():
     for user in users:                        
         if user_no % 20 == 0:
             print(f"user {user_no} out of {len(users)}")
-        user_no += 1
-        
-        conn = sqlite3.connect("reddit_posts.db")  # Reconnect for each user
-        query = "SELECT timestamp FROM posts WHERE username = ?"
-        df = pd.read_sql(query, conn, params=(user,))
-        conn.close()
+        user_no += 1        
 
+        df = pd.read_sql("SELECT timestamp FROM chicken_posts WHERE username = ?", conn, params=(user,))
         if df.empty:
             continue
 
-        conn = sqlite3.connect("COAD_streaks.db")  # Reconnect for each user
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        cursor.execute(f"SELECT * FROM user_posts WHERE username = ?", (user,)) ## TODO: UPDATE TABLE NAME!
+        cursor.execute(f"SELECT * FROM COAD_posts WHERE username = ?", (user,))
         
         COAD_streak = cursor.fetchone()
 
@@ -97,8 +88,6 @@ def find_streaks():
         else:
             last_COAD_timestamp = 0
             COAD_streak_number = 0
-
-        conn.close()
 
         # Ensure timestamp is datetime
         df["timestamp"] = pd.to_datetime(df["timestamp"], unit='s', utc=True)
@@ -153,10 +142,7 @@ def find_streaks():
         # Store only the largest streak across all timezones for this user
         longest_streaks[user] = max_streak
             
-    # Insert or update streaks in the database
-    conn = sqlite3.connect('current_streaks.db')
-    cursor = conn.cursor()
-    
+    # Insert or update streaks in the database    
     for user, streak in longest_streaks.items():
         cursor.execute("""
             INSERT INTO user_streaks (timestamp, username, streak)
@@ -176,7 +162,7 @@ def update_flair():
     print("Updating user flair")
     
     # SQLite Database setup
-    db_file = 'current_streaks.db'
+    db_file = 'chicken_bot.db'
     conn = sqlite3.connect(db_file)
     cursor = conn.cursor()
     
@@ -206,7 +192,6 @@ def update_flair():
     
             # Set the user's flair
             subreddit.flair.set(user, text=user_flair)
-#            print(f"Flair for {reddit_username} set to {user_flair}")
         except Exception as e:
             print(f"Failed to set flair for {reddit_username}: {e}")
     
@@ -231,6 +216,10 @@ def update_target_post():
 
     print("New check")
     new_check = True
+    
+    conn = sqlite3.connect("chicken_bot.db")
+    cursor = conn.cursor()
+
     for submission in reversed(list(subreddit.new(limit=POST_LIMIT))):
         print(f"Checking post {submission.title}")
         if submission.title.isnumeric():
@@ -242,23 +231,17 @@ def update_target_post():
                 target_post.edit(text)
         
                 # Add new post to database
-                conn = sqlite3.connect("reddit_posts.db")
-                cursor = conn.cursor()
                 cursor.execute('''
-                    INSERT OR IGNORE INTO posts (id, username, timestamp, approved)
+                    INSERT OR IGNORE INTO chicken_posts (id, username, timestamp, approved)
                     VALUES (?, ?, ?, 1)
                 ''', (submission.id, submission.author.name if submission.author else "[deleted]", submission.created_utc))
                 conn.commit()
-                conn.close()
                   
                 new_check = False
         
-            else:
-                conn = sqlite3.connect('reddit_posts.db')
-                cursor = conn.cursor()
-                
+            else:                
                 # Fetch data from the SQLite database (modify your query as needed)
-                cursor.execute("SELECT approved FROM posts WHERE id = ?;", (submission.id,))
+                cursor.execute("SELECT approved FROM chicken_posts WHERE id = ?;", (submission.id,))
                 approved = cursor.fetchall()
 
                 if not approved:
@@ -277,7 +260,6 @@ def update_target_post():
 
                 else:
                     current_count = post_number
-                conn.close()
         else:
             print(f"Non-numeric post detected: {submission.title}")
 
@@ -289,6 +271,8 @@ def update_target_post():
 
             # Remove the incorrect post
             submission.mod.remove()
+
+    conn.close()
 
 # Runs the bot, responding to new posts immediately.
 subreddit = reddit.subreddit("countwithchickenlady")

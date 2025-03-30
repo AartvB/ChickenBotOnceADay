@@ -1,8 +1,8 @@
 import sqlite3
 
-conn = sqlite3.connect("reddit_posts.db")
+conn = sqlite3.connect("chicken_bot.db")
 cursor = conn.cursor()
-query = "DELETE FROM posts WHERE id = 'aaaaaaa'"
+query = "DELETE FROM chicken_posts WHERE id = 'aaaaaaa'"
 cursor.execute(query)
 conn.commit()
 conn.close()

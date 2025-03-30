@@ -7,10 +7,10 @@ reddit = praw.Reddit('bot1')
 reddit.validate_on_submit = True
 
 # Database setup
-conn = sqlite3.connect("reddit_posts.db")
+conn = sqlite3.connect("chicken_bot.db")
 cursor = conn.cursor()
 cursor.execute('''
-    CREATE TABLE IF NOT EXISTS posts (
+    CREATE TABLE IF NOT EXISTS chicken_posts (
         id TEXT PRIMARY KEY,
         username TEXT,
         timestamp INTEGER
@@ -22,7 +22,7 @@ conn.commit()
 subreddit = reddit.subreddit("countwithchickenlady")
 for post in subreddit.new(limit=1000):  # Fetches the newest posts
     cursor.execute('''
-        INSERT OR IGNORE INTO posts (id, username, timestamp, approved)
+        INSERT OR IGNORE INTO chicken_posts (id, username, timestamp, approved)
         VALUES (?, ?, ?, 1)
     ''', (post.id, post.author.name if post.author else "[deleted]", post.created_utc))
     conn.commit()

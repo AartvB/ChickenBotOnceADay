@@ -6,8 +6,8 @@ from datetime import datetime, timedelta
 user = input("The user is named: ")
 tz_name = input("The timezone is named: ")
 
-conn = sqlite3.connect("reddit_posts.db")
-df = pd.read_sql("SELECT * FROM posts WHERE username = ?", conn, params=(user,))
+conn = sqlite3.connect("chicken_bot.db")
+df = pd.read_sql("SELECT * FROM chicken_posts WHERE username = ?", conn, params=(user,))
 conn.close()
 
 df["timestamp"] = pd.to_datetime(df["timestamp"], unit='s', utc=True)

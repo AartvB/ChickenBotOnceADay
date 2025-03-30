@@ -53,14 +53,15 @@ def find_streaks():
     # Get the current time
     now = datetime.now()
     
-    # Create a dictionary mapping UTC offsets to a representative timezone
-    timezones = {
-        pytz.timezone(tz).utcoffset(now): tz
-        for tz in pytz.common_timezones
-    }
-    
-    # Extract a sorted list of unique timezone names
-    timezones = sorted(timezones.values())
+#    # Create a dictionary mapping UTC offsets to a representative timezone
+#    timezones = {
+#        pytz.timezone(tz).utcoffset(now): tz
+#        for tz in pytz.common_timezones
+#    }
+#    
+#    timezones = timezones.values()
+
+    timezones = pytz.common_timezones
         
     longest_streaks = {}
     
@@ -243,7 +244,7 @@ def update_target_post():
                 # Fetch data from the SQLite database (modify your query as needed)
                 cursor.execute("SELECT approved FROM chicken_posts WHERE id = ?;", (submission.id,))
                 approved = cursor.fetchall()
-
+                
                 if not approved:
                     print(f"Invalid post detected: {submission.title}")
 
@@ -330,7 +331,7 @@ while True:
                         n_errors['execution']['n'] += 1
 
                     print(f"Error in execution: {e}")
-                    time.sleep(10)
+                    time.sleep(30)
 
     except Exception as e:
         error_count = n_errors['stream']['n']
@@ -348,4 +349,4 @@ while True:
             n_errors['stream']['n'] += 1
 
         print(f"Error in submission stream: {e}")
-        time.sleep(10)
+        time.sleep(30)

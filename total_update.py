@@ -15,9 +15,6 @@ reddit.validate_on_submit = True
 subreddit = reddit.subreddit("countwithchickenlady")
 
 update_target_post()
-find_streaks()
-update_flair()
-update_target_post()
 
 n_errors = {'execution': {'first_error':0,'n':0,'last_message':'','first_ever_error':0}, 'stream': {'first_error':0,'n':0,'last_message':'','first_ever_error':0}}
 
@@ -36,9 +33,6 @@ while True:
 
             while True:
                 try:
-                    update_target_post()
-                    find_streaks()
-                    update_flair()
                     update_target_post()
 
                     if n_errors['execution']['n'] > 0:

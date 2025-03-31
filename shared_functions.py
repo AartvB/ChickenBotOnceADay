@@ -218,18 +218,24 @@ def update_target_post(post_limit=5):
                 current_count = post_number
                 text = f"The next number should be: [{post_number + 1}](https://www.reddit.com/r/countwithchickenlady/submit?title={post_number + 1})\n\n^(This comment is automatically updated by a bot. If you think it made a mistake, contact the mods via modmail. The code for this bot is fully open source, and can be found [here](https://github.com/AartvB/ChickenBotOnceADay).)"
                 target_post.edit(text)
-        
+
+                cursor.execute("SELECT approved FROM chicken_posts WHERE id = ?;", (submission.id,))
+                already_in_database = cursor.fetchall()
+                    
+                if not already_in_database:
                 # Add new post to database
-                cursor.execute('''
-                    INSERT OR IGNORE INTO chicken_posts (id, username, timestamp, approved)
-                    VALUES (?, ?, ?, 1)
-                ''', (submission.id, submission.author.name if submission.author else "[deleted]", submission.created_utc))
-                conn.commit()
-                  
+                    cursor.execute('''
+                        INSERT OR IGNORE INTO chicken_posts (id, username, timestamp, approved)
+                        VALUES (?, ?, ?, 1)
+                    ''', (submission.id, submission.author.name if submission.author else "[deleted]", submission.created_utc))
+                    conn.commit()
+
+                    find_streaks(username = submission.author.name if submission.author else "[deleted]")
+                    update_flair(username = submission.author.name if submission.author else "[deleted]")
+
                 new_check = False
         
             else:                
-                # Fetch data from the SQLite database (modify your query as needed)
                 cursor.execute("SELECT approved FROM chicken_posts WHERE id = ?;", (submission.id,))
                 approved = cursor.fetchall()
                 

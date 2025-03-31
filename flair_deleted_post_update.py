@@ -3,7 +3,7 @@ import sqlite3
 import pandas as pd
 import schedule
 import time
-from shared_functions import find_streaks, update_flair, send_email
+from shared_functions import find_streaks, update_flair, send_email, update_target_post
 
 reddit = praw.Reddit('bot1')
 reddit.validate_on_submit = True
@@ -37,6 +37,8 @@ def check_for_deleted_posts():
                 cursor.execute("DELETE FROM chicken_posts WHERE id = ?",
                             (submission.id,))
                 conn.commit()
+
+                update_target_post()
                 find_streaks(user)
                 update_flair(user)
             except Exception as e:

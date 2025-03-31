@@ -38,7 +38,7 @@ def send_email(subject, body):
     except Exception as e:
         print(f"Error sending email: {e}")
 
-def find_streaks():
+def find_streaks(username = None):
     print("Checking using flair")
     
     # Connect to the database
@@ -61,7 +61,10 @@ def find_streaks():
 
     # Process each user separately
     for user in users:                        
-        if user_no % 20 == 0:
+        if username is not None:
+            if username != user:
+                continue
+        elif user_no % 20 == 0:
             print(f"user {user_no} out of {len(users)}")
         user_no += 1        
 
@@ -150,7 +153,7 @@ def find_streaks():
 
     print("Finished checking using flair")
 
-def update_flair():
+def update_flair(username = None):
     # Update user flair
     print("Updating user flair")
     
@@ -169,12 +172,16 @@ def update_flair():
     user_no = 1
     
     # Change user flair based on database data
-    for user_data in users_data:
-        if user_no % 20 == 0:
+    for user_data in users_data:       
+        reddit_username, user_streak = user_data
+
+        if username is not None:
+            if reddit_username != username:
+                continue
+        elif user_no % 20 == 0:
             print(f"user {user_no} out of {len(users_data)}")
         user_no += 1
-        
-        reddit_username, user_streak = user_data
+ 
         user_flair = "Current streak: " + str(user_streak)
         if reddit_username == "chickenbotonceaday":
             user_flair = "Current streak: 3.1415926535"

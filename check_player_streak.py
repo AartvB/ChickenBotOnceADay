@@ -7,29 +7,26 @@ user = input("The user is named: ")
 tz_name = input("The timezone is named: ")
 
 conn = sqlite3.connect("chicken_bot.db")
-df = pd.read_sql("SELECT * FROM chicken_posts WHERE username = ?", conn, params=(user,))
+posts = pd.read_sql("SELECT * FROM chicken_posts WHERE username = ?", conn, params=(user,))
+deleted_posts = pd.read_sql("SELECT * FROM deleted_posts WHERE username = ?", conn, params=(user,))
 conn.close()
 
-df["timestamp"] = pd.to_datetime(df["timestamp"], unit='s', utc=True)
+posts["timestamp"] = pd.to_datetime(posts["timestamp"], unit='s', utc=True)
 
 # Convert timestamp to the specific timezone
-df["local_time"] = df["timestamp"].dt.tz_convert(pytz.timezone(tz_name))
-df["post_date"] = df["local_time"].dt.date  # Extract date part
+posts["local_time"] = posts["timestamp"].dt.tz_convert(pytz.timezone(tz_name))
+posts["post_date"] = posts["local_time"].dt.date  # Extract date part
 
 # Sort posts
-df = df.sort_values("post_date", ascending = False)
+posts = posts.sort_values("post_date", ascending = False)
 
-print("Posts of user", user)
+print(f"Posts of user {user}:\n")
+for index, row in posts.iterrows():
+    print(f"Date/time: {row['local_time']}, post id: {row['id']}")
 print("")
-
-for index, row in df.iterrows():
-    print(row)
-print("")
-
-for index, row in df.iterrows():
-    print(row['local_time'])
-print("")
-
-for index, row in df.iterrows():
-    print(row['post_date'])
-print("")
+if len(deleted_posts) > 0:
+    print(f"Deleted posts of user {user}:\n")
+    for index, row in deleted_posts.iterrows():
+        print(f"Date/time: {row['local_time']}, post id: {row['id']}")
+else:
+    print(f"{user} had no deleted posts.")

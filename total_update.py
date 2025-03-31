@@ -52,14 +52,6 @@ def find_streaks():
 
     # Get the current time
     now = datetime.now()
-    
-#    # Create a dictionary mapping UTC offsets to a representative timezone
-#    timezones = {
-#        pytz.timezone(tz).utcoffset(now): tz
-#        for tz in pytz.common_timezones
-#    }
-#    
-#    timezones = timezones.values()
 
     timezones = pytz.common_timezones
         

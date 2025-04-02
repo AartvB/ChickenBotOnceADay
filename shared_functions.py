@@ -185,9 +185,13 @@ def update_flair(username = None):
         try:
             # Check if the user exists in the subreddit
             user = reddit.redditor(reddit_username)
-    
+
+            flair_generator = subreddit.flair(reddit_username)
+            current_flair = next(flair_generator, None)['flair_text']
+
             # Set the user's flair
-            subreddit.flair.set(user, text=user_flair)
+            if current_flair != user_flair:
+                subreddit.flair.set(user, text=user_flair)
         except Exception as e:
             print(f"Failed to set flair for {reddit_username}: {e}")
     

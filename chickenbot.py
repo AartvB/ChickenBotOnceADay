@@ -58,13 +58,29 @@ class ChickenBot:
         self.open_connection()
         return self.__cursor
         
-    def setup_database(self, keep_open = False): # TODO: Add other tables
+    def setup_database(self, keep_open = False):
         self.cursor().execute('''
             CREATE TABLE IF NOT EXISTS chicken_posts (
+                    id TEXT PRIMARY KEY,
+                    username TEXT,
+                    timestamp INTEGER
+                , approved BOOLEAN
+            );
+            CREATE TABLE IF NOT EXISTS  COAD_posts (
+                username TEXT PRIMARY KEY,
+                post_id TEXT,
+                streak INTEGER
+            );
+            CREATE TABLE IF NOT EXISTS  user_streaks (
+                    timestamp INTEGER,
+                    username TEXT  PRIMARY KEY,
+                    streak INTEGER
+                );
+            CREATE TABLE IF NOT EXISTS  deleted_posts (
                 id TEXT PRIMARY KEY,
                 username TEXT,
                 timestamp INTEGER
-            )
+            );
         ''')
         self.conn().commit()
         self.handle_connection(keep_open)

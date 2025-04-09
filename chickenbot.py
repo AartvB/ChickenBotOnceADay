@@ -63,24 +63,30 @@ class ChickenBot:
             CREATE TABLE IF NOT EXISTS chicken_posts (
                     id TEXT PRIMARY KEY,
                     username TEXT,
-                    timestamp INTEGER
-                , approved BOOLEAN
-            );
+                    timestamp INTEGER,
+                    approved BOOLEAN
+            )
+        ''')
+        self.cursor().execute('''
             CREATE TABLE IF NOT EXISTS  COAD_posts (
                 username TEXT PRIMARY KEY,
                 post_id TEXT,
                 streak INTEGER
-            );
+            )
+        ''')
+        self.cursor().execute('''
             CREATE TABLE IF NOT EXISTS  user_streaks (
                     timestamp INTEGER,
                     username TEXT  PRIMARY KEY,
                     streak INTEGER
-                );
+                )
+        ''')
+        self.cursor().execute('''
             CREATE TABLE IF NOT EXISTS  deleted_posts (
                 id TEXT PRIMARY KEY,
                 username TEXT,
                 timestamp INTEGER
-            );
+            )
         ''')
         self.conn().commit()
         self.handle_connection(keep_open)

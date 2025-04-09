@@ -10,18 +10,19 @@ The code cannot be run in its current state. To run it, you need to:
 
 1. Set up a reddit bot (Create app at https://www.reddit.com/prefs/apps/)
 2. Fill in the account details in a file called 'praw.ini'
-3. Set up the relevant databases (COAD_streaks.db, current_streaks.db and reddit_posts.db)
+3. Run the setup_database function
 4. Give the bot account mod access in the r/countwithchickenlady subreddit
-5. Create a file called 'email_info.py' with information of an email account that can be used to send emails from (a gmail account with an app password), and information of a receiver account. Errors or post deletions are reported using this email adress to the receiver. Syntax:
+5. Create a file called .env with information of an email account that can be used to send emails from (a gmail account with an app password), and information of a receiver account. Errors or post deletions are reported using this email adress to the receiver. Syntax:
 
 ```python
-def email_data():
-    return {'account': "sending_account@gmail.com", 'password': "app_password", 'receiver': "reveceiving_account"}
+ACCOUNT=sending_account@gmail.com
+PASSWORD=app_password
+RECEIVER=receiving_account
 ```
 
-If you have done this, you should be able to run this bot by running the 'total_update.py' file.
+If you have done this, you should be able to run this bot by running the 'total_update.py' file and the 'flair_deleted_post_update.py' file.
 
-When the bot has been shut down for a while, before turning the bot on again, you should run the file 'fill_database_after_failure.py'.
+When the bot has been shut down for a while, before turning the bot on again, you should first run the fill_database_after_failure function.
 
 ## License
 

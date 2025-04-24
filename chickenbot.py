@@ -508,5 +508,18 @@ class ChickenBot:
     def start_maintenance(self):
         self.reddit.submission(id='1iulihu').edit(f"The bot is currently under maintenance. Our apologies for the inconvenience. Please [sort by new](https://www.reddit.com/r/countwithchickenlady/new/) to see what the next number in the sequence should be, and use this number as the title for your new post.\n\n^(If you think the bot made a mistake, contact the mods via modmail. The code for this bot is fully open source, and can be found [here](https://github.com/AartvB/ChickenBotOnceADay).)")
 
-    def end_maintenance(self):
-        self.update_target_post(post_limit=20)
+    def end_maintenance(self, keep_open=False):
+        self.update_target_post(post_limit=20, keep_open=True)
+        self.handle_connection(keep_open)
+
+    def update_count_leaderboard(self):
+        posts = pd.read_sql("SELECT username, COUNT(*) as counts FROM chicken_posts GROUP BY username ORDER BY counts DESC LIMIT 1000", self.conn())
+        posts['rank'] = posts['counts'].rank(method='min', ascending=False).astype(int)
+        posts = posts[['rank', 'username', 'counts']]
+        posts = posts.rename(columns={'rank':'Rank', 'username':'Username', 'counts':'Counts'})
+        leaderboard = posts.to_markdown(index=False)
+
+        wiki_text = "#All counters of our beautiful sub!\n\nThis shows the top 1000 posters of our sub!\n\n"+leaderboard
+
+        self.subreddit.wiki['counts'].edit(wiki_text, reason = 'Hourly update')
+

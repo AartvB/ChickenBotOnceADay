@@ -15,5 +15,8 @@ schedule.every(1).minute.do(check_for_deleted_posts)
 schedule.every(1).hour.do(extra_streak_check)
 
 while True:
-    schedule.run_pending()
-    time.sleep(1)
+    try:
+        schedule.run_pending()
+        time.sleep(1)
+    except Exception as e:
+        print(e)

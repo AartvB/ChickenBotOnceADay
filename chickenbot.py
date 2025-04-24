@@ -298,7 +298,6 @@ class ChickenBot:
     def update_target_post(self, post_limit=5, keep_open = False):
         current_count = 0
 
-        """Fetch recent posts and update the target post."""
         target_post = self.reddit.submission(id='1iulihu')
 
         print("New check")
@@ -505,3 +504,9 @@ class ChickenBot:
                     self.send_email('Error in handling post deletion',f'An error occuered when I tried to handle the post deletion. Error message:\n{e}')
 
         self.handle_connection(keep_open)
+    
+    def start_maintenance(self):
+        self.reddit.submission(id='1iulihu').edit(f"The bot is currently under maintenance. Our apologies for the inconvenience. Please [sort by new](https://www.reddit.com/r/countwithchickenlady/new/) to see what the next number in the sequence should be, and use this number as the title for your new post.\n\n^(If you think the bot made a mistake, contact the mods via modmail. The code for this bot is fully open source, and can be found [here](https://github.com/AartvB/ChickenBotOnceADay).)")
+
+    def end_maintenance(self):
+        self.update_target_post(post_limit=20)

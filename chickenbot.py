@@ -78,7 +78,8 @@ class ChickenBot:
             CREATE TABLE IF NOT EXISTS  user_streaks (
                     timestamp INTEGER,
                     username TEXT  PRIMARY KEY,
-                    streak INTEGER
+                    streak INTEGER,
+                    COAD_streak INTEGER
                 )
         ''')
         self.cursor().execute('''
@@ -120,8 +121,8 @@ class ChickenBot:
             print(f"Error sending email: {e}")
 
     def get_all_posts(self, username, keep_open = False):
-        posts = pd.read_sql("SELECT * FROM chicken_posts WHERE username = ?", self.conn(), (username,))
-        deleted_posts = pd.read_sql("SELECT * FROM deleted_posts WHERE username = ?", self.conn(), (username,))
+        posts = pd.read_sql("SELECT * FROM chicken_posts WHERE username = ?", self.conn(), params=(username,))
+        deleted_posts = pd.read_sql("SELECT * FROM deleted_posts WHERE username = ?", self.conn(), params=(username,))
         self.handle_connection(keep_open)
         return posts, deleted_posts
 
@@ -156,7 +157,8 @@ class ChickenBot:
         if has_COAD_streak:
             last_COAD_datetime = datetime.fromtimestamp(last_COAD_timestamp, tz=timezone.utc)
 
-        max_streak = 0  # Track the longest streak across all timezones
+        max_streak = 0 # Track the longest streak across all timezones
+        max_COAD_streak = 0 # Track the longest COAD streak across all timezones
         
         for tz_name in pytz.common_timezones:
             # TODO: Stop loop if it is clear that it won't get better. For example, the last post was more than 48 hours ago.
@@ -199,12 +201,11 @@ class ChickenBot:
                 else: # Last post was earlier than today or yesterday
                     streak = 0
                     break
+            max_streak = max(max_streak, streak)
             if has_COAD_streak:
-                max_streak = max(max_streak, streak, COAD_streak)
-            else:
-                max_streak = max(max_streak, streak)
+                max_COAD_streak = max(max_COAD_streak, COAD_streak)
         self.handle_connection(keep_open)
-        return max_streak
+        return max_streak, max_COAD_streak
 
     def calculate_all_streaks(self, keep_open = False):
         print("Calculating user streaks")
@@ -215,7 +216,8 @@ class ChickenBot:
         for user_no, user in enumerate(users):                        
             if (user_no+1) % 20 == 0:
                 print(f"user {user_no+1} out of {len(users)}")
-            streaks['user'] = self.calculate_streak(user, keep_open=True)
+            streaks[user] = {}
+            streaks[user]['normal'], streaks[user]['COAD'] = self.calculate_streak(user, keep_open=True)
         print("Finished calculating user streaks")
 
         self.handle_connection(keep_open)
@@ -223,25 +225,27 @@ class ChickenBot:
 
     def record_streak(self, username, keep_open = False):
         self.cursor().execute("""
-            INSERT INTO user_streaks (timestamp, username, streak)
-            VALUES (CURRENT_TIMESTAMP, ?, ?)
+            INSERT INTO user_streaks (timestamp, username, streak, COAD_streak)
+            VALUES (CURRENT_TIMESTAMP, ?, ?, ?)
             ON CONFLICT(username) DO UPDATE SET
             timestamp = CURRENT_TIMESTAMP,
-            streak = excluded.streak
-        """, (username, self.calculate_streak(username, keep_open=True)))
+            streak = excluded.streak,
+            COAD_streak = excluded.COAD_streak
+        """, (username, *self.calculate_streak(username, keep_open=True)))
         self.conn().commit()
         self.handle_connection(keep_open)
 
     def record_all_streaks(self, keep_open = False):
         print("Recording user streaks")
-        for user, streak in self.calculate_all_streaks(keep_open=True).items():
+        for user, streaks in self.calculate_all_streaks(keep_open=True).items():
             self.cursor().execute("""
-                INSERT INTO user_streaks (timestamp, username, streak)
-                VALUES (CURRENT_TIMESTAMP, ?, ?)
+                INSERT INTO user_streaks (timestamp, username, streak, COAD_streak)
+                VALUES (CURRENT_TIMESTAMP, ?, ?, ?)
                 ON CONFLICT(username) DO UPDATE SET
                 timestamp = CURRENT_TIMESTAMP,
-                streak = excluded.streak
-            """, (user, streak))
+                streak = excluded.streak,
+                COAD_streak = excluded.COAD_streak
+            """, (user, streaks['normal'], streaks['COAD']))
         
         self.conn().commit()
         self.handle_connection(keep_open)
@@ -252,8 +256,8 @@ class ChickenBot:
         if not self.is_user(username,keep_open=True):
             self.handle_connection(keep_open)
             raise ValueError(f"u/{username} is not a known subreddit user.")
-        self.cursor().execute("SELECT streak FROM user_streaks WHERE username = ?", (username,))
-        streak = self.cursor().fetchone()[0]
+        self.cursor().execute("SELECT streak, COAD_streak FROM user_streaks WHERE username = ?", (username,))
+        streak = max(self.cursor().fetchone())
 
         user_flair = "Current streak: " + str(streak)
         if username == "chickenbotonceaday":
@@ -394,9 +398,9 @@ class ChickenBot:
             for index, row in posts.iterrows():
                 result += f"Date/time: {row['local_time']}, post id: {row['id']}\n"
 
-            self.cursor().execute("SELECT streak FROM user_streaks WHERE username = ?", (username,))
+            self.cursor().execute("SELECT streak, COAD_streak FROM user_streaks WHERE username = ?", (username,))
 
-            result += f"User {username} has the following streak: {self.cursor().fetchone()[0]}\n"
+            result += f"User {username} has the following streak: {max(self.cursor().fetchone())}\n"
 
             result += posts['time_diff']
         else:
@@ -429,8 +433,8 @@ class ChickenBot:
         tz_name = input("The timezone is named: ")
 
         posts, deleted_posts = self.get_all_posts(username, keep_open=True)
-        self.cursor().execute("SELECT streak FROM user_streaks WHERE username = ?", (username,))
-        streak = self.cursor().fetchone()[0]
+        self.cursor().execute("SELECT streak, COAD_streak FROM user_streaks WHERE username = ?", (username,))
+        streak = max(self.cursor().fetchone())
 
         posts["datetime"] = pd.to_datetime(posts["timestamp"], unit='s', utc=True)
         posts["local_time"] = posts["datetime"].dt.tz_convert(pytz.timezone(tz_name))

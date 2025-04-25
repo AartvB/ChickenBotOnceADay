@@ -64,7 +64,8 @@ class ChickenBot:
                     id TEXT PRIMARY KEY,
                     username TEXT,
                     timestamp INTEGER,
-                    approved BOOLEAN
+                    approved BOOLEAN,
+                    title TEXT
             )
         ''')
         self.cursor().execute('''
@@ -95,9 +96,9 @@ class ChickenBot:
     def fill_database_after_failure(self, keep_open = False):
         for post in self.subreddit.new(limit=1000):  # Fetches the newest posts
             self.cursor().execute('''
-                INSERT OR IGNORE INTO chicken_posts (id, username, timestamp, approved)
-                VALUES (?, ?, ?, 1)
-            ''', (post.id, self.get_author(post), post.created_utc))
+                INSERT OR IGNORE INTO chicken_posts (id, username, timestamp, approved, title)
+                VALUES (?, ?, ?, 1, ?)
+            ''', (post.id, self.get_author(post), post.created_utc, post.title))
         self.conn().commit()
         self.handle_connection(keep_open)
 
@@ -307,8 +308,8 @@ class ChickenBot:
                 post_number = int(submission.title)
                 if post_number == current_count + 1 or current_count == 0:
                     current_count = post_number
-                    self.cursor().execute('INSERT OR IGNORE INTO chicken_posts (id, username, timestamp, approved) VALUES (?, ?, ?, 1)',
-                                        (submission.id, self.get_author(submission), submission.created_utc))
+                    self.cursor().execute('INSERT OR IGNORE INTO chicken_posts (id, username, timestamp, approved, title) VALUES (?, ?, ?, 1, ?)',
+                                        (submission.id, self.get_author(submission), submission.created_utc, submission.title))
                     self.conn().commit()
 
                     self.record_streak(self.get_author(submission),keep_open=True)
@@ -335,8 +336,8 @@ class ChickenBot:
                         current_count = max(post_number, current_count)
                         
                         # Add new post to database
-                        self.cursor().execute('INSERT OR IGNORE INTO chicken_posts (id, username, timestamp, approved) VALUES (?, ?, ?, 1)',
-                                            (submission.id, self.get_author(submission), submission.created_utc))
+                        self.cursor().execute('INSERT OR IGNORE INTO chicken_posts (id, username, timestamp, approved, title) VALUES (?, ?, ?, 1, ?)',
+                                            (submission.id, self.get_author(submission), submission.created_utc, submission.title))
                         self.conn().commit()
 
                         self.record_streak(self.get_author(submission),keep_open=True)
@@ -506,13 +507,17 @@ class ChickenBot:
         self.handle_connection(keep_open)
     
     def start_maintenance(self):
+        print('Started maintenance')
         self.reddit.submission(id='1iulihu').edit(f"The bot is currently under maintenance. Our apologies for the inconvenience. Please [sort by new](https://www.reddit.com/r/countwithchickenlady/new/) to see what the next number in the sequence should be, and use this number as the title for your new post.\n\n^(If you think the bot made a mistake, contact the mods via modmail. The code for this bot is fully open source, and can be found [here](https://github.com/AartvB/ChickenBotOnceADay).)")
 
     def end_maintenance(self, keep_open=False):
+        print('Ended maintenance')
         self.update_target_post(post_limit=20, keep_open=True)
         self.handle_connection(keep_open)
 
-    def update_count_leaderboard(self):
+    def update_count_leaderboard(self, keep_open=False):
+        print("Updating count leaderboard")
+
         posts = pd.read_sql("SELECT username, COUNT(*) as counts FROM chicken_posts GROUP BY username ORDER BY counts DESC LIMIT 1000", self.conn())
         posts['rank'] = posts['counts'].rank(method='min', ascending=False).astype(int)
         posts = posts[['rank', 'username', 'counts']]
@@ -522,4 +527,23 @@ class ChickenBot:
         wiki_text = "#All counters of our beautiful sub!\n\nThis shows the top 1000 posters of our sub!\n\n"+leaderboard
 
         self.subreddit.wiki['counts'].edit(wiki_text, reason = 'Hourly update')
+        self.handle_connection(keep_open)
 
+    def update_100_count_leaderboard(self, keep_open=False):
+        print("Updating 100 counts leaderboard")
+
+        posts = pd.read_sql("SELECT username, title FROM chicken_posts WHERE title LIKE '%00' ORDER BY CAST(title AS UNSIGNED) DESC LIMIT 1000", self.conn())
+        posts = posts[['username', 'title']]
+        posts = posts.rename(columns={'username':'Username', 'title':'Count'})
+        full_list = posts.to_markdown(index=False)
+
+        ranking = posts['Username'].value_counts().reset_index()
+        ranking.columns = ['Username', "Number of 100's"]
+        ranking['Rank'] = ranking["Number of 100's"].rank(method='min', ascending=False).astype(int)
+        ranking = ranking[['Rank', 'Username', "Number of 100's"]]
+        leaderboard = ranking.to_markdown(index=False)
+
+        wiki_text = "#100 counts\n\nThis page shows which users have counted too a 100 number, and how many times!\n\n"+leaderboard+"\n\n"+full_list
+
+        self.subreddit.wiki['100s'].edit(wiki_text, reason = 'Hourly update')
+        self.handle_connection(keep_open)

@@ -325,12 +325,12 @@ class ChickenBot:
 
                         # Leave a comment explaining the removal
                         comment_text = (
-                            f"This post has been removed because the correct next number was {current_count + 1}, but this post is {post_number}. Please check the most recent number before posting.\n\nIt might be possible that someone else simply was slightly faster with their post.\n\nFeel free to post again with the correct new number.\n\n^(This action was performed automatically by a bot. If you think it made a mistake, contact the mods via modmail. The code for this bot is fully open source, and can be found [here](https://github.com/AartvB/ChickenBotOnceADay).)"
+                            f"This post has been removed because the correct next number was {current_count + 1}, but this post has '{post_number}' as title. Please check the most recent number before posting.\n\nIt might be possible that someone else simply was slightly faster with their post.\n\nFeel free to post again with the correct new number.\n\n^(This action was performed automatically by a bot. If you think it made a mistake, contact the mods via modmail. The code for this bot is fully open source, and can be found [here](https://github.com/AartvB/ChickenBotOnceADay).)"
                         ) # TODO: ADD MORE VARIATION, FOR EXAMPLE WHEN IT IS ONLY 1 BELOW.
-                        submission.reply(comment_text)
                 
                         # Remove the incorrect post
                         submission.mod.remove()
+                        submission.mod.send_removal_message(comment_text)
 
                     else:
                         current_count = max(post_number, current_count)
@@ -349,10 +349,10 @@ class ChickenBot:
 
                 # Leave a comment explaining the removal
                 comment_text = "This post has been removed because the title must be a number. Please only post the next number in sequence.\n\n^(This action was performed automatically by a bot. If you think it made a mistake, contact the mods via modmail. The code for this bot is fully open source, and can be found [here](https://github.com/AartvB/ChickenBotOnceADay).)"
-                submission.reply(comment_text)
 
                 # Remove the incorrect post
                 submission.mod.remove()
+                submission.mod.send_removal_message(comment_text)
 
         target_post.edit(f"The next number should be: [{current_count + 1}](https://www.reddit.com/r/countwithchickenlady/submit?title={current_count + 1})\n\n^(This comment is automatically updated by a bot. If you think it made a mistake, contact the mods via modmail. The code for this bot is fully open source, and can be found [here](https://github.com/AartvB/ChickenBotOnceADay).)")
         self.handle_connection(keep_open)
@@ -543,7 +543,26 @@ class ChickenBot:
         ranking = ranking[['Rank', 'Username', "Number of 100's"]]
         leaderboard = ranking.to_markdown(index=False)
 
-        wiki_text = "#100 counts\n\nThis page shows which users have counted too a 100 number, and how many times!\n\n"+leaderboard+"\n\n"+full_list
+        wiki_text = "#100 counts\n\nThis page shows which users have counted to a number divisible by 100, and how many times!\n\n"+leaderboard+"\n\n"+full_list
 
         self.subreddit.wiki['100s'].edit(wiki_text, reason = 'Hourly update')
+        self.handle_connection(keep_open)
+
+    def update_1000_count_leaderboard(self, keep_open=False):
+        print("Updating 1000 counts leaderboard")
+
+        posts = pd.read_sql("SELECT username, title FROM chicken_posts WHERE title LIKE '%000' ORDER BY CAST(title AS UNSIGNED) DESC LIMIT 1000", self.conn())
+        posts = posts[['username', 'title']]
+        posts = posts.rename(columns={'username':'Username', 'title':'Count'})
+        full_list = posts.to_markdown(index=False)
+
+        ranking = posts['Username'].value_counts().reset_index()
+        ranking.columns = ['Username', "Number of 1000's"]
+        ranking['Rank'] = ranking["Number of 1000's"].rank(method='min', ascending=False).astype(int)
+        ranking = ranking[['Rank', 'Username', "Number of 1000's"]]
+        leaderboard = ranking.to_markdown(index=False)
+
+        wiki_text = "#1000 counts\n\nThis page shows which users have counted to a number divisible by 1000, and how many times!\n\n"+leaderboard+"\n\n"+full_list
+
+        self.subreddit.wiki['1000s'].edit(wiki_text, reason = 'Hourly update')
         self.handle_connection(keep_open)

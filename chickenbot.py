@@ -566,3 +566,45 @@ class ChickenBot:
 
         self.subreddit.wiki['1000s'].edit(wiki_text, reason = 'Hourly update')
         self.handle_connection(keep_open)
+
+    def update_top_posts_leaderboard(self, keep_open=False):
+        print("Updating top posts leaderboard")
+
+        posts = pd.read_sql("SELECT id, username, title, timestamp FROM chicken_posts", self.conn())
+        posts = posts.rename(columns={'username':'Username', 'title':'Title'})
+        posts['Upvotes'] = None
+        posts['Comments'] = None
+        for index, row in posts.iterrows():
+            if (index+1) % 100 == 0:
+                print(f"Post {index+1} out of {len(posts)}")
+            try:
+                post = self.reddit.submission(id=row['id'])
+                posts.loc[index, 'Upvotes'] = post.score
+                post.comments.replace_more(limit=None)
+                posts.loc[index, 'Comments'] = len(post.comments.list())
+            except Exception as e:
+                print(e)
+                time.sleep(30)
+        
+        posts['Title'] = posts.apply(lambda row: f"[{row['Title']}](https://www.reddit.com/r/countwithchickenlady/comments/{row['id']})", axis=1)
+        posts['Date (UTC)'] = pd.to_datetime(posts['timestamp'], unit='s', utc=True).dt.date
+        posts = posts.drop(columns=['id'])
+
+        df_upvotes = posts[['Upvotes','Username','Title', 'Date (UTC)']]
+        df_upvotes['Rank'] = df_upvotes["Upvotes"].rank(method='min', ascending=False)
+        df_upvotes = df_upvotes.sort_values(by=['Upvotes'], ascending=False)
+        df_upvotes = df_upvotes.head(150)
+        df_upvotes = df_upvotes[['Rank', 'Upvotes', 'Username', 'Title', 'Date (UTC)']]
+        upvote_leaderboard = df_upvotes.to_markdown(index=False)
+
+        df_comments = posts[['Comments','Username','Title', 'Date (UTC)']]
+        df_comments['Rank'] = df_comments["Comments"].rank(method='min', ascending=False)
+        df_comments = df_comments.sort_values(by=['Comments'], ascending=False)
+        df_comments = df_comments.head(150)
+        df_comments = df_comments[['Rank', 'Comments', 'Username', 'Title', 'Date (UTC)']]
+        comment_leaderboard = df_comments.to_markdown(index=False)
+
+        wiki_text = "#Top posts\n\nThis page shows the top posts of this sub!\n\n##Upvotes\n"+upvote_leaderboard+"\n\n##Comments\n"+comment_leaderboard
+
+        self.subreddit.wiki['top_posts'].edit(wiki_text, reason = 'Daily update')
+        self.handle_connection(keep_open)

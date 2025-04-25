@@ -13,17 +13,21 @@ def update_100_count_leaderboard():
 def update_1000_count_leaderboard():    
     cb.update_1000_count_leaderboard()
 
+def update_top_posts_leaderboard():
+    cb.update_top_posts_leaderboard()
+
 schedule.every(1).hour.do(update_count_leaderboard)
 schedule.every(1).hour.do(update_100_count_leaderboard)
 schedule.every(1).hour.do(update_1000_count_leaderboard)
+schedule.every(1).day.do(update_top_posts_leaderboard)
 
 update_count_leaderboard()
 update_100_count_leaderboard()
 update_1000_count_leaderboard()
+update_top_posts_leaderboard()
 
 while True:
     try:
-
         schedule.run_pending()
         time.sleep(1)
     except Exception as e:

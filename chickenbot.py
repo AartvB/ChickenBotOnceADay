@@ -593,14 +593,14 @@ class ChickenBot:
         df_upvotes = posts[['Upvotes','Username','Title', 'Date (UTC)']]
         df_upvotes['Rank'] = df_upvotes["Upvotes"].rank(method='min', ascending=False)
         df_upvotes = df_upvotes.sort_values(by=['Upvotes'], ascending=False)
-        df_upvotes = df_upvotes.head(150)
+        df_upvotes = df_upvotes.head(100)
         df_upvotes = df_upvotes[['Rank', 'Upvotes', 'Username', 'Title', 'Date (UTC)']]
         upvote_leaderboard = df_upvotes.to_markdown(index=False)
 
         df_comments = posts[['Comments','Username','Title', 'Date (UTC)']]
         df_comments['Rank'] = df_comments["Comments"].rank(method='min', ascending=False)
         df_comments = df_comments.sort_values(by=['Comments'], ascending=False)
-        df_comments = df_comments.head(150)
+        df_comments = df_comments.head(100)
         df_comments = df_comments[['Rank', 'Comments', 'Username', 'Title', 'Date (UTC)']]
         comment_leaderboard = df_comments.to_markdown(index=False)
 

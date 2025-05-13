@@ -28,8 +28,8 @@ schedule.every(1).day.do(update_top_posts_leaderboards)
 update_count_leaderboard()
 update_100_count_leaderboard()
 update_1000_count_leaderboard()
-update_top_posts_leaderboards()
 update_identical_digits_leaderboard()
+update_top_posts_leaderboards()
 
 while True:
     try:

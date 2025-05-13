@@ -65,7 +65,9 @@ class ChickenBot:
                     username TEXT,
                     timestamp INTEGER,
                     approved BOOLEAN,
-                    title TEXT
+                    title TEXT,
+                    current_streak INTEGER,
+                    current_COAD_streak INTEGER
             )
         ''')
         self.cursor().execute('''
@@ -139,12 +141,11 @@ class ChickenBot:
     def is_user(self, username, keep_open = False):
         return username in self.get_all_users(keep_open = keep_open)
     
-    def calculate_streak(self, username, keep_open = False):
-        df = pd.read_sql("SELECT timestamp FROM chicken_posts WHERE username = ?", self.conn(), params=(username,))
-        if df.empty:
-            self.handle_connection(keep_open)
-            return 0
+    def calculate_streak(self, username, timestamp = None, keep_open = False):
+        if timestamp is None:
+            timestamp = time.time()
 
+        df = pd.read_sql("SELECT timestamp FROM chicken_posts WHERE username = ? AND timestamp <= ?", self.conn(), params=(username,timestamp))
         self.cursor().execute(f"SELECT * FROM COAD_posts WHERE username = ?", (username,))
         
         COAD_streak_info = self.cursor().fetchone()
@@ -180,8 +181,10 @@ class ChickenBot:
             streak = 0
             COAD_streak = 0
             last_date = None
-            today = datetime.now(tz).date()
-            yesterday = (datetime.now(tz) - timedelta(days=1)).date()
+
+            today_datetime = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+            today = today_datetime.date()
+            yesterday = (today_datetime - timedelta(days=1)).date()
 
             for date in df["post_date"]:
                 if date == today and last_date is None:
@@ -256,6 +259,32 @@ class ChickenBot:
 
         print("Finished recording user streaks")
 
+    def record_post_streak(self, post_id, keep_open = False):
+        self.cursor().execute(f"SELECT username, timestamp FROM chicken_posts WHERE id = ?", (post_id,))
+        username, timestamp = self.cursor().fetchone()
+        streak, COAD_streak = self.calculate_streak(username, timestamp=timestamp, keep_open=True)
+        self.cursor().execute("UPDATE chicken_posts SET current_streak = ?, current_COAD_streak = ? WHERE id = ?", (streak, COAD_streak, post_id))
+        self.conn().commit()
+        self.handle_connection(keep_open)
+
+    def record_post_streaks_user(self, username, keep_open = False):
+        posts = pd.read_sql("SELECT id FROM chicken_posts WHERE username = ?", self.conn(), params=(username,))
+        for i, post_id in enumerate(posts['id']):
+            if (i+1) % 20 == 0:
+                print("Recording post streaks for user", username, "post", i+1, "out of", len(posts))
+            self.record_post_streak(post_id, keep_open=True)
+        self.handle_connection(keep_open)
+
+    def record_all_empty_post_streaks(self, keep_open = False):
+        print("Recording empty post streaks")
+        posts = pd.read_sql("SELECT id FROM chicken_posts WHERE current_streak IS NULL", self.conn())
+        for i, post_id in enumerate(posts['id']):
+            if (i+1) % 20 == 0:
+                print("Recording empty post streaks", i+1, "out of", len(posts))
+            self.record_post_streak(post_id, keep_open=True)
+        self.handle_connection(keep_open)
+        print("Finished recording empty post streaks")
+
     def update_user_flair(self, username, keep_open = False):
         if not self.is_user(username,keep_open=True):
             self.handle_connection(keep_open)
@@ -317,6 +346,7 @@ class ChickenBot:
 
                     self.record_streak(self.get_author(submission),keep_open=True)
                     self.update_user_flair(self.get_author(submission),keep_open=True)
+                    self.record_post_streak(submission.id,keep_open=True)
                 else:                
                     self.cursor().execute("SELECT approved FROM chicken_posts WHERE id = ?;", (submission.id,))
                     approved = self.cursor().fetchall()
@@ -472,6 +502,8 @@ class ChickenBot:
         self.cursor().execute("DELETE FROM chicken_posts WHERE id = ?",(post_id,))
         self.conn().commit()
 
+        self.record_post_streaks_user(result[1],keep_open=True)
+
         self.handle_connection(keep_open)
         print(f"Post deleted succesfully: {result}")
 
@@ -504,6 +536,7 @@ class ChickenBot:
                     self.update_target_post(keep_open=True)
                     self.record_streak(user,keep_open=True)
                     self.update_user_flair(user, keep_open=True)
+                    self.record_post_streaks_user(user,keep_open=True)
                 except Exception as e:
                     self.send_email('Error in handling post deletion',f'An error occuered when I tried to handle the post deletion. Error message:\n{e}')
 

@@ -532,8 +532,10 @@ class ChickenBot:
     def update_100_count_leaderboard(self, keep_open=False):
         print("Updating 100 counts leaderboard")
 
-        posts = pd.read_sql("SELECT username, title FROM chicken_posts WHERE title LIKE '%00' ORDER BY CAST(title AS UNSIGNED) DESC LIMIT 1000", self.conn())
-        posts = posts[['username', 'title']]
+        posts = pd.read_sql("SELECT username, title, id, timestamp FROM chicken_posts WHERE title LIKE '%00' ORDER BY CAST(title AS UNSIGNED) DESC LIMIT 1000", self.conn()) # TODO: Implement LIMIT 1000 differently
+        posts['title'] = posts.apply(lambda row: f"[{row['title']}](https://www.reddit.com/r/countwithchickenlady/comments/{row['id']})", axis=1)
+        posts['Date (UTC)'] = pd.to_datetime(posts['timestamp'], unit='s', utc=True).dt.date
+        posts = posts[['username', 'title', 'Date (UTC)']]
         posts = posts.rename(columns={'username':'Username', 'title':'Count'})
         full_list = posts.to_markdown(index=False)
 
@@ -551,8 +553,10 @@ class ChickenBot:
     def update_1000_count_leaderboard(self, keep_open=False):
         print("Updating 1000 counts leaderboard")
 
-        posts = pd.read_sql("SELECT username, title FROM chicken_posts WHERE title LIKE '%000' ORDER BY CAST(title AS UNSIGNED) DESC LIMIT 1000", self.conn())
-        posts = posts[['username', 'title']]
+        posts = pd.read_sql("SELECT username, title, id, timestamp FROM chicken_posts WHERE title LIKE '%000' ORDER BY CAST(title AS UNSIGNED) DESC LIMIT 1000", self.conn()) # TODO: Implement LIMIT 1000 differently
+        posts['title'] = posts.apply(lambda row: f"[{row['title']}](https://www.reddit.com/r/countwithchickenlady/comments/{row['id']})", axis=1)
+        posts['Date (UTC)'] = pd.to_datetime(posts['timestamp'], unit='s', utc=True).dt.date
+        posts = posts[['username', 'title', 'Date (UTC)']]
         posts = posts.rename(columns={'username':'Username', 'title':'Count'})
         full_list = posts.to_markdown(index=False)
 

@@ -533,6 +533,9 @@ class ChickenBot:
         print("Updating 100 counts leaderboard")
 
         posts = pd.read_sql("SELECT username, title, id, timestamp FROM chicken_posts WHERE title LIKE '%00' ORDER BY CAST(title AS UNSIGNED) DESC LIMIT 1000", self.conn()) # TODO: Implement LIMIT 1000 differently
+        posts['title'] = posts['title'].astype('int64')
+        posts = posts.loc[posts.groupby('title')['timestamp'].idxmin().values]
+        posts = posts.sort_values("title", ascending = False)
         posts['title'] = posts.apply(lambda row: f"[{row['title']}](https://www.reddit.com/r/countwithchickenlady/comments/{row['id']})", axis=1)
         posts['Date (UTC)'] = pd.to_datetime(posts['timestamp'], unit='s', utc=True).dt.date
         posts = posts[['username', 'title', 'Date (UTC)']]
@@ -554,6 +557,9 @@ class ChickenBot:
         print("Updating 1000 counts leaderboard")
 
         posts = pd.read_sql("SELECT username, title, id, timestamp FROM chicken_posts WHERE title LIKE '%000' ORDER BY CAST(title AS UNSIGNED) DESC LIMIT 1000", self.conn()) # TODO: Implement LIMIT 1000 differently
+        posts['title'] = posts['title'].astype('int64')
+        posts = posts.loc[posts.groupby('title')['timestamp'].idxmin().values]
+        posts = posts.sort_values("title", ascending = False)
         posts['title'] = posts.apply(lambda row: f"[{row['title']}](https://www.reddit.com/r/countwithchickenlady/comments/{row['id']})", axis=1)
         posts['Date (UTC)'] = pd.to_datetime(posts['timestamp'], unit='s', utc=True).dt.date
         posts = posts[['username', 'title', 'Date (UTC)']]
@@ -575,7 +581,7 @@ class ChickenBot:
         print("Updating top posts leaderboards")
 
         posts = pd.read_sql("SELECT id, username, title, timestamp FROM chicken_posts", self.conn())
-        posts = posts.rename(columns={'username':'Username', 'title':'Title'})
+        posts = posts.rename(columns={'username':'Username', 'title':'Count'})
         posts['Upvotes'] = None
         posts['Comments'] = None
         for index, row in posts.iterrows():
@@ -590,16 +596,16 @@ class ChickenBot:
                 print(e)
                 time.sleep(30)
         
-        posts['Title'] = posts.apply(lambda row: f"[{row['Title']}](https://www.reddit.com/r/countwithchickenlady/comments/{row['id']})", axis=1)
+        posts['Count'] = posts.apply(lambda row: f"[{row['Count']}](https://www.reddit.com/r/countwithchickenlady/comments/{row['id']})", axis=1)
         posts['Date (UTC)'] = pd.to_datetime(posts['timestamp'], unit='s', utc=True).dt.date
         posts = posts.drop(columns=['id'])
 
-        df_upvotes = posts[['Upvotes','Username','Title', 'Date (UTC)']]
+        df_upvotes = posts[['Upvotes','Username','Count', 'Date (UTC)']]
         df_upvotes = df_upvotes.copy()
         df_upvotes['Rank'] = df_upvotes["Upvotes"].rank(method='min', ascending=False)
         df_upvotes = df_upvotes.sort_values(by=['Upvotes'], ascending=False)
         df_upvotes = df_upvotes.head(100)
-        df_upvotes = df_upvotes[['Rank', 'Upvotes', 'Username', 'Title', 'Date (UTC)']]
+        df_upvotes = df_upvotes[['Rank', 'Upvotes', 'Username', 'Count', 'Date (UTC)']]
         upvote_leaderboard = df_upvotes.to_markdown(index=False)
 
         ranking_upvotes = df_upvotes['Username'].value_counts().reset_index()
@@ -608,12 +614,12 @@ class ChickenBot:
         ranking_upvotes = ranking_upvotes[['Rank', 'Username', "Number of appearences in top 100"]]
         appearences_upvotes_leaderboard = ranking_upvotes.to_markdown(index=False)
 
-        df_comments = posts[['Comments','Username','Title', 'Date (UTC)']]
+        df_comments = posts[['Comments','Username','Count', 'Date (UTC)']]
         df_comments = df_comments.copy()
         df_comments['Rank'] = df_comments["Comments"].rank(method='min', ascending=False)
         df_comments = df_comments.sort_values(by=['Comments'], ascending=False)
         df_comments = df_comments.head(100)
-        df_comments = df_comments[['Rank', 'Comments', 'Username', 'Title', 'Date (UTC)']]
+        df_comments = df_comments[['Rank', 'Comments', 'Username', 'Count', 'Date (UTC)']]
         comment_leaderboard = df_comments.to_markdown(index=False)
 
         ranking_comments = df_comments['Username'].value_counts().reset_index()
@@ -628,4 +634,29 @@ class ChickenBot:
         wiki_text_upvotes = "#Top posts\n\nThis page shows the posts with the most upvotes of this sub!\n\n##Leaderboard\n"+appearences_upvotes_leaderboard+"\n\n##Upvotes\n"+upvote_leaderboard
         self.subreddit.wiki['most_upvotes'].edit(wiki_text_upvotes, reason = 'Daily update')
 
+        self.handle_connection(keep_open)
+
+    def update_identical_digits_leaderboard(self, keep_open=False):
+        print("Updating identical digits leaderboard")
+
+        posts = pd.read_sql("SELECT id, username, title, timestamp FROM chicken_posts", self.conn())
+        posts = posts[posts['title'].str.fullmatch(r'(\d)\1*')]
+        posts['title'] = posts['title'].astype('int64')
+        posts = posts.loc[posts.groupby('title')['timestamp'].idxmin().values]
+        posts = posts.sort_values("title", ascending = False)
+        posts['title'] = posts.apply(lambda row: f"[{row['title']}](https://www.reddit.com/r/countwithchickenlady/comments/{row['id']})", axis=1)
+        posts['Date (UTC)'] = pd.to_datetime(posts['timestamp'], unit='s', utc=True).dt.date
+        posts = posts[['username', 'title', 'Date (UTC)']]
+        posts = posts.rename(columns={'username':'Username', 'title':'Count'})
+        full_list = posts.to_markdown(index=False)
+
+        ranking = posts['Username'].value_counts().reset_index()
+        ranking.columns = ['Username', "Number of appearences"]
+        ranking['Rank'] = ranking["Number of appearences"].rank(method='min', ascending=False).astype(int)
+        ranking = ranking[['Rank', 'Username', "Number of appearences"]]
+        leaderboard = ranking.to_markdown(index=False)
+
+        wiki_text = "#Identical digits\n\nThis page shows which users have counted to a number that has only identcal digits, and how many times!\n\n"+leaderboard+"\n\n"+full_list
+
+        self.subreddit.wiki['identical_digits'].edit(wiki_text, reason = 'Hourly update')
         self.handle_connection(keep_open)

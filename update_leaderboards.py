@@ -13,18 +13,18 @@ def update_100_count_leaderboard():
 def update_1000_count_leaderboard():    
     cb.update_1000_count_leaderboard()
 
-def update_top_posts_leaderboard():
-    cb.update_top_posts_leaderboard()
+def update_top_posts_leaderboards():
+    cb.update_top_posts_leaderboards()
 
 schedule.every(1).hour.do(update_count_leaderboard)
 schedule.every(1).hour.do(update_100_count_leaderboard)
 schedule.every(1).hour.do(update_1000_count_leaderboard)
-schedule.every(1).day.do(update_top_posts_leaderboard)
+schedule.every(1).day.do(update_top_posts_leaderboards)
 
 update_count_leaderboard()
 update_100_count_leaderboard()
 update_1000_count_leaderboard()
-update_top_posts_leaderboard()
+update_top_posts_leaderboards()
 
 while True:
     try:

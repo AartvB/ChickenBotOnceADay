@@ -567,8 +567,8 @@ class ChickenBot:
         self.subreddit.wiki['1000s'].edit(wiki_text, reason = 'Hourly update')
         self.handle_connection(keep_open)
 
-    def update_top_posts_leaderboard(self, keep_open=False):
-        print("Updating top posts leaderboard")
+    def update_top_posts_leaderboards(self, keep_open=False):
+        print("Updating top posts leaderboards")
 
         posts = pd.read_sql("SELECT id, username, title, timestamp FROM chicken_posts", self.conn())
         posts = posts.rename(columns={'username':'Username', 'title':'Title'})
@@ -591,20 +591,37 @@ class ChickenBot:
         posts = posts.drop(columns=['id'])
 
         df_upvotes = posts[['Upvotes','Username','Title', 'Date (UTC)']]
+        df_upvotes = df_upvotes.copy()
         df_upvotes['Rank'] = df_upvotes["Upvotes"].rank(method='min', ascending=False)
         df_upvotes = df_upvotes.sort_values(by=['Upvotes'], ascending=False)
         df_upvotes = df_upvotes.head(100)
         df_upvotes = df_upvotes[['Rank', 'Upvotes', 'Username', 'Title', 'Date (UTC)']]
         upvote_leaderboard = df_upvotes.to_markdown(index=False)
 
+        ranking_upvotes = df_upvotes['Username'].value_counts().reset_index()
+        ranking_upvotes.columns = ['Username', "Number of appearences in top 100"]
+        ranking_upvotes['Rank'] = ranking_upvotes["Number of appearences in top 100"].rank(method='min', ascending=False).astype(int)
+        ranking_upvotes = ranking_upvotes[['Rank', 'Username', "Number of appearences in top 100"]]
+        appearences_upvotes_leaderboard = ranking_upvotes.to_markdown(index=False)
+
         df_comments = posts[['Comments','Username','Title', 'Date (UTC)']]
+        df_comments = df_comments.copy()
         df_comments['Rank'] = df_comments["Comments"].rank(method='min', ascending=False)
         df_comments = df_comments.sort_values(by=['Comments'], ascending=False)
         df_comments = df_comments.head(100)
         df_comments = df_comments[['Rank', 'Comments', 'Username', 'Title', 'Date (UTC)']]
         comment_leaderboard = df_comments.to_markdown(index=False)
 
-        wiki_text = "#Top posts\n\nThis page shows the top posts of this sub!\n\n##Upvotes\n"+upvote_leaderboard+"\n\n##Comments\n"+comment_leaderboard
+        ranking_comments = df_comments['Username'].value_counts().reset_index()
+        ranking_comments.columns = ['Username', "Number of appearences in top 100"]
+        ranking_comments['Rank'] = ranking_comments["Number of appearences in top 100"].rank(method='min', ascending=False).astype(int)
+        ranking_comments = ranking_comments[['Rank', 'Username', "Number of appearences in top 100"]]
+        appearences_comments_leaderboard = ranking_comments.to_markdown(index=False)
 
-        self.subreddit.wiki['top_posts'].edit(wiki_text, reason = 'Daily update')
+        wiki_text_comments = "#Most comments\n\nThis page shows the posts with the most comments of this sub!\n\n##Leaderboard\n"+appearences_comments_leaderboard+"\n\n##Comments\n"+comment_leaderboard
+        self.subreddit.wiki['most_comments'].edit(wiki_text_comments, reason = 'Daily update')
+
+        wiki_text_upvotes = "#Top posts\n\nThis page shows the posts with the most upvotes of this sub!\n\n##Leaderboard\n"+appearences_upvotes_leaderboard+"\n\n##Upvotes\n"+upvote_leaderboard
+        self.subreddit.wiki['most_upvotes'].edit(wiki_text_upvotes, reason = 'Daily update')
+
         self.handle_connection(keep_open)

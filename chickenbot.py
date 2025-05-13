@@ -279,8 +279,8 @@ class ChickenBot:
         print("Recording empty post streaks")
         posts = pd.read_sql("SELECT id FROM chicken_posts WHERE current_streak IS NULL", self.conn())
         for i, post_id in enumerate(posts['id']):
-            if (i+1) % 20 == 0:
-                print("Recording empty post streaks", i+1, "out of", len(posts))
+#            if (i+1) % 20 == 0:
+            print("Recording empty post streaks", i+1, "out of", len(posts))
             self.record_post_streak(post_id, keep_open=True)
         self.handle_connection(keep_open)
         print("Finished recording empty post streaks")
@@ -695,4 +695,44 @@ class ChickenBot:
         wiki_text = "#Identical digits\n\nThis page shows which users have counted to a number that has only identcal digits, and how many times!\n\n"+leaderboard+"\n\n"+full_list
 
         self.subreddit.wiki['identical_digits'].edit(wiki_text, reason = 'Hourly update')
+        self.handle_connection(keep_open)
+
+    def update_streak_leaderboard(self, keep_open=False):
+        print("Updating streak leaderboard")
+
+        current_streaks = pd.read_sql("SELECT username, streak, COAD_streak FROM user_streaks", self.conn())
+    
+        current_normal_streaks = current_streaks.sort_values("streak", ascending = False).head(100)
+        current_normal_streaks = current_normal_streaks.rename(columns={'username':'Username', 'streak':'Streak'})
+        current_normal_streaks['Rank'] = current_normal_streaks['Streak'].rank(method='min', ascending=False).astype(int)
+        current_normal_streaks = current_normal_streaks[['Rank', 'Username', 'Streak']]
+        current_normal_streaks = current_normal_streaks.to_markdown(index=False)
+
+        current_COAD_streaks = current_streaks.copy()
+        current_COAD_streaks['Streak'] = current_streaks[['streak', 'COAD_streak']].max(axis=1)
+        current_COAD_streaks = current_COAD_streaks.sort_values("Streak", ascending = False).head(100)
+        current_COAD_streaks = current_COAD_streaks.rename(columns={'username':'Username'})
+        current_COAD_streaks['Rank'] = current_COAD_streaks['Streak'].rank(method='min', ascending=False).astype(int)
+        current_COAD_streaks = current_COAD_streaks[['Rank', 'Username', 'Streak']]
+        current_COAD_streaks = current_COAD_streaks.to_markdown(index=False)
+
+        max_normal_streaks = pd.read_sql("SELECT username, MAX(current_streak) as streak FROM chicken_posts GROUP BY username", self.conn())
+        max_normal_streaks = max_normal_streaks.sort_values("streak", ascending = False).head(100)
+        max_normal_streaks = max_normal_streaks.rename(columns={'username':'Username', 'streak':'Streak'})
+        max_normal_streaks['Rank'] = max_normal_streaks['Streak'].rank(method='min', ascending=False).astype(int)
+        max_normal_streaks = max_normal_streaks[['Rank', 'Username', 'Streak']]
+        max_normal_streaks = max_normal_streaks.to_markdown(index=False)
+
+        max_COAD_streaks = pd.read_sql("SELECT username, MAX(current_streak) AS max_current_streak, MAX(current_COAD_streak) as max_current_COAD_streak FROM chicken_posts GROUP BY username", self.conn())
+        max_COAD_streaks['Streak'] = max_COAD_streaks[['max_current_streak', 'max_current_COAD_streak']].max(axis=1)
+        max_COAD_streaks = max_COAD_streaks.sort_values("Streak", ascending = False).head(100)
+        max_COAD_streaks = max_COAD_streaks.rename(columns={'username':'Username'})
+        max_COAD_streaks['Rank'] = max_COAD_streaks['Streak'].rank(method='min', ascending=False).astype(int)
+        max_COAD_streaks = max_COAD_streaks[['Rank', 'Username', 'Streak']]
+        max_COAD_streaks = max_COAD_streaks.to_markdown(index=False)
+
+        wiki_text = "#Top streaks\n\nThis page shows the top streaks of users of our sub!\n\n##This sub only\n\nThis shows the top streaks built up in this sub only.\n\n###Currently running streaks\n"+current_normal_streaks+"\n\n###Top streaks ever\n"+max_normal_streaks
+        wiki_text += "\n\n##This sub and r/CountOnceADay\n\nThis shows the top streaks built up in this sub and possibly carried over from r/CountOnceADay.\n\n###Currently running streaks\n"+current_COAD_streaks+"\n\n###Max streaks\n"+max_COAD_streaks
+
+        self.subreddit.wiki['top_streaks'].edit(wiki_text, reason = 'Hourly update')
         self.handle_connection(keep_open)

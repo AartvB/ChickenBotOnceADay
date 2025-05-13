@@ -19,16 +19,21 @@ def update_top_posts_leaderboards():
 def update_identical_digits_leaderboard():
     cb.update_identical_digits_leaderboard()
 
+def update_streak_leaderboard():
+    cb.update_streak_leaderboard()
+
 schedule.every(1).hour.do(update_count_leaderboard)
 schedule.every(1).hour.do(update_100_count_leaderboard)
 schedule.every(1).hour.do(update_1000_count_leaderboard)
 schedule.every(1).hour.do(update_identical_digits_leaderboard)
+schedule.every(1).hour.do(update_streak_leaderboard)
 schedule.every(1).day.do(update_top_posts_leaderboards)
 
 update_count_leaderboard()
 update_100_count_leaderboard()
 update_1000_count_leaderboard()
 update_identical_digits_leaderboard()
+update_streak_leaderboard()
 update_top_posts_leaderboards()
 
 while True:

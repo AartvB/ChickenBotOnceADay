@@ -7,7 +7,7 @@ from datetime import datetime, timezone, timedelta
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-
+import shutil
 from dotenv import load_dotenv
 import os
 
@@ -92,6 +92,9 @@ class ChickenBot:
         ''')
         self.conn().commit()
         self.handle_connection(keep_open)
+
+    def backup_database(self):
+        shutil.copy2('chicken_bot.db', f"chicken_bot backup {datetime.now().strftime('%Y-%m-%d %H.%M.%S')}.db")
 
     def fill_database_after_failure(self, keep_open = False):
         for post in self.subreddit.new(limit=1000):  # Fetches the newest posts

@@ -259,9 +259,12 @@ class ChickenBot:
 
         print("Finished recording user streaks")
 
-    def record_post_streak(self, post_id, keep_open = False):
-        self.cursor().execute(f"SELECT username, timestamp FROM chicken_posts WHERE id = ?", (post_id,))
-        username, timestamp = self.cursor().fetchone()
+    def record_post_streak(self, post_id, replace = True, keep_open = False):
+        self.cursor().execute(f"SELECT username, timestamp, current_streak, current_COAD_streak FROM chicken_posts WHERE id = ?", (post_id,))
+        username, timestamp, streak, COAD_streak = self.cursor().fetchone()
+        if not replace and streak is not None and COAD_streak is not None:
+            self.handle_connection(keep_open)
+            return
         streak, COAD_streak = self.calculate_streak(username, timestamp=timestamp, keep_open=True)
         self.cursor().execute("UPDATE chicken_posts SET current_streak = ?, current_COAD_streak = ? WHERE id = ?", (streak, COAD_streak, post_id))
         self.conn().commit()
@@ -346,7 +349,7 @@ class ChickenBot:
 
                     self.record_streak(self.get_author(submission),keep_open=True)
                     self.update_user_flair(self.get_author(submission),keep_open=True)
-                    self.record_post_streak(submission.id,keep_open=True)
+                    self.record_post_streak(submission.id,replace=False,keep_open=True)
                 else:                
                     self.cursor().execute("SELECT approved FROM chicken_posts WHERE id = ?;", (submission.id,))
                     approved = self.cursor().fetchall()

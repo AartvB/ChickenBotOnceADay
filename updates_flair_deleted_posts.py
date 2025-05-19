@@ -14,6 +14,10 @@ def extra_streak_check():
 schedule.every(1).minute.do(check_for_deleted_posts)
 schedule.every(1).hour.do(extra_streak_check)
 
+# Run the first check immediately
+extra_streak_check()
+check_for_deleted_posts()
+
 while True:
     try:
         schedule.run_pending()

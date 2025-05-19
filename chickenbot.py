@@ -105,6 +105,7 @@ class ChickenBot:
                 VALUES (?, ?, ?, 1, ?)
             ''', (post.id, self.get_author(post), post.created_utc, post.title))
         self.conn().commit()
+        self.record_all_streaks(keep_open=True)
         self.handle_connection(keep_open)
 
     def send_email(self, subject, body):

@@ -345,6 +345,9 @@ class ChickenBot:
         print("New check")
         for submission in reversed(list(self.subreddit.new(limit=post_limit))):
             print(f"Checking post {submission.title}")
+            self.cursor().execute("SELECT approved FROM chicken_posts WHERE id = ?;", (submission.id,))
+            approved = self.cursor().fetchall()
+
             if submission.title.isnumeric():
                 post_number = int(submission.title)
                 if post_number == current_count + 1 or current_count == 0:
@@ -356,10 +359,7 @@ class ChickenBot:
                     self.record_streak(self.get_author(submission),keep_open=True)
                     self.update_user_flair(self.get_author(submission),keep_open=True)
                     self.record_post_streak(submission.id,replace=False,keep_open=True)
-                else:                
-                    self.cursor().execute("SELECT approved FROM chicken_posts WHERE id = ?;", (submission.id,))
-                    approved = self.cursor().fetchall()
-                    
+                else:                                    
                     if not approved and submission.approved_by is None:
                         print(f"Invalid post detected: {submission.title}")
 
@@ -384,7 +384,7 @@ class ChickenBot:
 
                         self.record_streak(self.get_author(submission),keep_open=True)
                         self.update_user_flair(self.get_author(submission),keep_open=True)
-            else:
+            elif not approved and submission.approved_by is None:
                 print(f"Non-numeric post detected: {submission.title}")
 
                 self.send_email('Removed post', f'I removed post {submission.title} by {self.get_author(submission)} because it did not use a number. You can find the post here: https://www.reddit.com/{submission.permalink}.')
@@ -414,7 +414,7 @@ class ChickenBot:
         self.record_streak(username,keep_open=True)
         self.update_user_flair(username, keep_open=True)
         self.record_post_streaks_user(username,keep_open=True)
-        
+
         self.handle_connection(keep_open)
 
         print(f"The COAD streak of {username} has been updated succesfully.")

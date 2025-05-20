@@ -281,7 +281,7 @@ class ChickenBot:
 
     def record_all_empty_post_streaks(self, keep_open = False):
         print("Recording empty post streaks")
-        posts = pd.read_sql("SELECT id FROM chicken_posts WHERE current_streak IS NULL", self.conn())
+        posts = pd.read_sql("SELECT id FROM chicken_posts WHERE current_streak IS NULL OR current_COAD_streak IS NULL", self.conn())
         for i, post_id in enumerate(posts['id']):
 #            if (i+1) % 20 == 0:
             print("Recording empty post streaks", i+1, "out of", len(posts))
@@ -294,7 +294,12 @@ class ChickenBot:
             self.handle_connection(keep_open)
             raise ValueError(f"u/{username} is not a known subreddit user.")
         self.cursor().execute("SELECT streak, COAD_streak FROM user_streaks WHERE username = ?", (username,))
-        streak = max(self.cursor().fetchone())
+        try:
+            streak = max(self.cursor().fetchone())
+        except Exception as e:
+            print(f"Failed to fetch streak for {username}: {e}")
+            self.handle_connection(keep_open)
+            return
 
         user_flair = "Current streak: " + str(streak)
         if username == "chickenbotonceaday":

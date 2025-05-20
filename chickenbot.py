@@ -410,6 +410,11 @@ class ChickenBot:
 
         self.cursor().execute("INSERT INTO COAD_posts (username, post_id, streak) VALUES (?, ?, ?)", (username,post_id,streak_no,))
         self.conn().commit()
+        
+        self.record_streak(username,keep_open=True)
+        self.update_user_flair(username, keep_open=True)
+        self.record_post_streaks_user(username,keep_open=True)
+        
         self.handle_connection(keep_open)
 
         print(f"The COAD streak of {username} has been updated succesfully.")

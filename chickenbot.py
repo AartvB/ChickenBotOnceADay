@@ -187,17 +187,13 @@ class ChickenBot:
             today = today_datetime.date()
             yesterday = (today_datetime - timedelta(days=1)).date()
 
+            if has_COAD_streak and (last_COAD_date == today or last_COAD_date == yesterday):
+                COAD_streak = COAD_streak_number
+
             for date in df["post_date"]:
-                if date == today and last_date is None:
+                if (date == today or date == yesterday) and last_date is None:
                     streak = 1
                     last_date = date
-                    if has_COAD_streak and last_COAD_date == today:
-                        COAD_streak = COAD_streak_number
-                elif date == yesterday and last_date is None:
-                    streak = 1
-                    last_date = date
-                    if has_COAD_streak and (last_COAD_date == today or last_COAD_date == yesterday):
-                        COAD_streak = COAD_streak_number
                 elif last_date is not None:
                     if date == last_date - timedelta(days=1):
                         if has_COAD_streak and date == last_COAD_date:
@@ -290,9 +286,6 @@ class ChickenBot:
         print("Finished recording empty post streaks")
 
     def update_user_flair(self, username, keep_open = False):
-        if not self.is_user(username,keep_open=True):
-            self.handle_connection(keep_open)
-            raise ValueError(f"u/{username} is not a known subreddit user.")
         self.cursor().execute("SELECT streak, COAD_streak FROM user_streaks WHERE username = ?", (username,))
         try:
             streak = max(self.cursor().fetchone())
@@ -630,6 +623,7 @@ class ChickenBot:
     def update_top_posts_leaderboards(self, keep_open=False):
         print("Updating top posts leaderboards")
 
+        start_time = time.time()
         posts = pd.read_sql("SELECT id, username, title, timestamp FROM chicken_posts", self.conn())
         posts = posts.rename(columns={'username':'Username', 'title':'Count'})
         posts['Upvotes'] = None
@@ -684,6 +678,18 @@ class ChickenBot:
         wiki_text_upvotes = "#Top posts\n\nThis page shows the posts with the most upvotes of this sub!\n\n##Leaderboard\n"+appearences_upvotes_leaderboard+"\n\n##Upvotes\n"+upvote_leaderboard
         self.subreddit.wiki['most_upvotes'].edit(wiki_text_upvotes, reason = 'Daily update')
 
+        time_taken = time.time() - start_time
+
+        hours, rem = divmod(time_taken, 3600)
+        minutes, seconds = divmod(rem, 60)
+        hours = int(time_taken // 3600)
+        minutes = int((time_taken % 3600) // 60)
+        seconds = int(time_taken % 60)
+        self.send_email(
+            'Top posts leaderboards updated',
+            f'The top posts leaderboards have been updated. It took {time_taken:.2f} seconds to update them. That is {hours}h {minutes}m {seconds}s'
+        )
+
         self.handle_connection(keep_open)
 
     def update_identical_digits_leaderboard(self, keep_open=False):
@@ -720,6 +726,7 @@ class ChickenBot:
         current_normal_streaks = current_normal_streaks.rename(columns={'username':'Username', 'streak':'Streak'})
         current_normal_streaks['Rank'] = current_normal_streaks['Streak'].rank(method='min', ascending=False).astype(int)
         current_normal_streaks = current_normal_streaks[['Rank', 'Username', 'Streak']]
+        current_normal_streaks = current_normal_streaks[current_normal_streaks['Streak'] > 0]
         current_normal_streaks = current_normal_streaks.to_markdown(index=False)
 
         current_COAD_streaks = current_streaks.copy()
@@ -728,6 +735,7 @@ class ChickenBot:
         current_COAD_streaks = current_COAD_streaks.rename(columns={'username':'Username'})
         current_COAD_streaks['Rank'] = current_COAD_streaks['Streak'].rank(method='min', ascending=False).astype(int)
         current_COAD_streaks = current_COAD_streaks[['Rank', 'Username', 'Streak']]
+        current_COAD_streaks = current_COAD_streaks[current_COAD_streaks['Streak'] > 0]
         current_COAD_streaks = current_COAD_streaks.to_markdown(index=False)
 
         max_normal_streaks = pd.read_sql("SELECT username, MAX(current_streak) as streak FROM chicken_posts GROUP BY username", self.conn())
@@ -735,6 +743,7 @@ class ChickenBot:
         max_normal_streaks = max_normal_streaks.rename(columns={'username':'Username', 'streak':'Streak'})
         max_normal_streaks['Rank'] = max_normal_streaks['Streak'].rank(method='min', ascending=False).astype(int)
         max_normal_streaks = max_normal_streaks[['Rank', 'Username', 'Streak']]
+        max_normal_streaks = max_normal_streaks[max_normal_streaks['Streak'] > 0]
         max_normal_streaks = max_normal_streaks.to_markdown(index=False)
 
         max_COAD_streaks = pd.read_sql("SELECT username, MAX(current_streak) AS max_current_streak, MAX(current_COAD_streak) as max_current_COAD_streak FROM chicken_posts GROUP BY username", self.conn())
@@ -743,6 +752,7 @@ class ChickenBot:
         max_COAD_streaks = max_COAD_streaks.rename(columns={'username':'Username'})
         max_COAD_streaks['Rank'] = max_COAD_streaks['Streak'].rank(method='min', ascending=False).astype(int)
         max_COAD_streaks = max_COAD_streaks[['Rank', 'Username', 'Streak']]
+        max_COAD_streaks = max_COAD_streaks[max_COAD_streaks['Streak'] > 0]
         max_COAD_streaks = max_COAD_streaks.to_markdown(index=False)
 
         wiki_text = "#Top streaks\n\nThis page shows the top streaks of users of our sub!\n\n##This sub only\n\nThis shows the top streaks built up in this sub only.\n\n###Currently running streaks\n"+current_normal_streaks+"\n\n###Top streaks ever\n"+max_normal_streaks

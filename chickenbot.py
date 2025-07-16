@@ -302,7 +302,7 @@ class ChickenBot:
             user_flair = special_flairs[username] + ' - '
         user_flair += "Streak: " + str(streak)
         if username == "chickenbotonceaday":
-            user_flair = "Current streak: 3.1415926535"
+            user_flair = "Streak: 3.1415926535"
 
         try:
             # Check if the user exists in the subreddit

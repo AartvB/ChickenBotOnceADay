@@ -295,8 +295,12 @@ class ChickenBot:
             print(f"Failed to fetch streak for {username}: {e}")
             self.handle_connection(keep_open)
             return
-
-        user_flair = "Current streak: " + str(streak)
+        
+        special_flairs = {'femacampcouncilor':'Chicken Lady','Jynxxie':'Puppy Lady','Dunge0nexpl0rer':'OG Chicken Follower'}
+        user_flair = ""
+        if username in special_flairs:
+            user_flair = special_flairs[username] + ' - '
+        user_flair += "Streak: " + str(streak)
         if username == "chickenbotonceaday":
             user_flair = "Current streak: 3.1415926535"
 

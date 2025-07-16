@@ -488,6 +488,14 @@ class ChickenBot:
         for index, row in posts.iterrows():
             print(f"Date/time: {row['local_time']}, post id: {row['id']}")
         print("")
+
+        self.cursor().execute(f"SELECT * FROM COAD_posts WHERE username = ?", (username,))        
+        COAD_post_info = self.cursor().fetchone()
+        if COAD_post_info:
+            last_COAD_timestamp = self.reddit.submission(id=COAD_post_info['post_id']).created_utc
+            last_COAD_post = datetime.fromtimestamp(last_COAD_timestamp, tz=pytz.timezone(tz_name))
+            print(f"COAD post:\nDate/time: {last_COAD_post}, post id: {COAD_post_info['post_id']}, streak: {COAD_post_info['streak']}\n")
+
         if len(deleted_posts) > 0:
             print(f"Deleted posts of user {username}:\n")
             for index, row in deleted_posts.iterrows():

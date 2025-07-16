@@ -205,6 +205,8 @@ class ChickenBot:
                 else: # Last post was earlier than today or yesterday
                     streak = 0
                     break
+            if has_COAD_streak and last_date is not None and last_COAD_date == last_date - timedelta(days=1):
+                COAD_streak = COAD_streak_number + streak
             max_streak = max(max_streak, streak)
             if has_COAD_streak:
                 max_COAD_streak = max(max_COAD_streak, COAD_streak)

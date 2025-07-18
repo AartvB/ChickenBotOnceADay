@@ -362,11 +362,11 @@ class ChickenBot:
                     if not approved and submission.approved_by is None:
                         print(f"Invalid post detected: {submission.title}")
 
-                        self.send_email('Removed post', f'I removed post {submission.title} by {self.get_author(submission)} because it did not use the correct number. You can find the post here: https://www.reddit.com/{submission.permalink}.')
+#                        self.send_email('Removed post', f'I removed post {submission.title} by {self.get_author(submission)} because it did not use the correct number. You can find the post here: https://www.reddit.com/{submission.permalink}.')
 
                         # Leave a comment explaining the removal
                         comment_text = (
-                            f"This post has been removed because the correct next number was {current_count + 1}, but this post has '{post_number}' as title. Please check the most recent number before posting.\n\nIt might be possible that someone else simply was slightly faster with their post.\n\nFeel free to post again with the correct new number.\n\n^(This action was performed automatically by a bot. If you think it made a mistake, contact the mods via modmail. The code for this bot is fully open source, and can be found [here](https://github.com/AartvB/ChickenBotOnceADay).)"
+                            f"This post has been removed because the correct next number was {current_count + 1}, but this post has '{post_number}' as title. Please check the most recent number before posting. You can find the correct number in [this](https://www.reddit.com/r/countwithchickenlady/comments/1iulihu) post.\n\nIt might be possible that someone else simply was slightly faster with their post.\n\nFeel free to post again with the correct new number.\n\n^(This action was performed automatically by a bot. If you think it made a mistake, contact the mods via modmail. The code for this bot is fully open source, and can be found [here](https://github.com/AartvB/ChickenBotOnceADay).)"
                         ) # TODO: ADD MORE VARIATION, FOR EXAMPLE WHEN IT IS ONLY 1 BELOW.
                 
                         # Remove the incorrect post
@@ -386,10 +386,10 @@ class ChickenBot:
             elif not approved and submission.approved_by is None:
                 print(f"Non-numeric post detected: {submission.title}")
 
-                self.send_email('Removed post', f'I removed post {submission.title} by {self.get_author(submission)} because it did not use a number. You can find the post here: https://www.reddit.com/{submission.permalink}.')
+#                self.send_email('Removed post', f'I removed post {submission.title} by {self.get_author(submission)} because it did not use a number. You can find the post here: https://www.reddit.com/{submission.permalink}.')
 
                 # Leave a comment explaining the removal
-                comment_text = "This post has been removed because the title must be a number. Please only post the next number in sequence.\n\n^(This action was performed automatically by a bot. If you think it made a mistake, contact the mods via modmail. The code for this bot is fully open source, and can be found [here](https://github.com/AartvB/ChickenBotOnceADay).)"
+                comment_text = "This post has been removed because the title must be a number. Please only post the next number in sequence. You can find the correct number in [this](https://www.reddit.com/r/countwithchickenlady/comments/1iulihu) post.\n\n^(This action was performed automatically by a bot. If you think it made a mistake, contact the mods via modmail. The code for this bot is fully open source, and can be found [here](https://github.com/AartvB/ChickenBotOnceADay).)"
 
                 # Remove the incorrect post
                 submission.mod.remove()

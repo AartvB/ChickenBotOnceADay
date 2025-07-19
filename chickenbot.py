@@ -350,6 +350,7 @@ class ChickenBot:
             if submission.title.isnumeric():
                 post_number = int(submission.title)
                 if post_number == current_count + 1 or current_count == 0:
+                    post_was_removed = False
                     if not approved and submission.approved_by is None:
                         earlier_posts = pd.read_sql("SELECT timestamp FROM chicken_posts WHERE username = ? ORDER BY timestamp DESC LIMIT 2", self.conn(), params=(self.get_author(submission),))
                         earlier_posts.loc[len(earlier_posts)] = [submission.created_utc]
@@ -384,14 +385,16 @@ class ChickenBot:
                             submission.mod.remove()
                             submission.mod.send_removal_message(comment_text)
 
-                    current_count = post_number
-                    self.cursor().execute('INSERT OR IGNORE INTO chicken_posts (id, username, timestamp, approved, title) VALUES (?, ?, ?, 1, ?)',
-                                        (submission.id, self.get_author(submission), submission.created_utc, submission.title))
-                    self.conn().commit()
+                            post_was_removed = True
+                    if not post_was_removed:
+                        current_count = post_number
+                        self.cursor().execute('INSERT OR IGNORE INTO chicken_posts (id, username, timestamp, approved, title) VALUES (?, ?, ?, 1, ?)',
+                                            (submission.id, self.get_author(submission), submission.created_utc, submission.title))
+                        self.conn().commit()
 
-                    self.record_streak(self.get_author(submission),keep_open=True)
-                    self.update_user_flair(self.get_author(submission),keep_open=True)
-                    self.record_post_streak(submission.id,replace=False,keep_open=True)
+                        self.record_streak(self.get_author(submission),keep_open=True)
+                        self.update_user_flair(self.get_author(submission),keep_open=True)
+                        self.record_post_streak(submission.id,replace=False,keep_open=True)
                 else:                                    
                     if not approved and submission.approved_by is None:
                         print(f"Invalid post detected: {submission.title}")

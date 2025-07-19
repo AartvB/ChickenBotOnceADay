@@ -296,7 +296,7 @@ class ChickenBot:
             self.handle_connection(keep_open)
             return
         
-        special_flairs = {'femacampcouncilor':'Chicken Lady','Jynxxie':'Puppy Lady','Dunge0nexpl0rer':'OG Chicken Follower'}
+        special_flairs = {'femacampcouncilor':'Chicken Lady','Jynxxie':'Puppy Lady','Dunge0nexpl0rer':'OG Chicken Follower','AartvB':'Bot Daddy'}
         user_flair = ""
         if username in special_flairs:
             user_flair = special_flairs[username] + ' - '
@@ -524,9 +524,10 @@ class ChickenBot:
         self.conn().commit()
 
         self.record_post_streaks_user(result[1],keep_open=True)
+        self.update_user_flair(result[1], keep_open = True)
 
         self.handle_connection(keep_open)
-        print(f"Post deleted succesfully: {result}")
+        print(f"Post deleted succesfully: Post {post_id} created by u/{result[1]}")
 
     def run_sql(self, query, keep_open = False):
         self.cursor().execute(query)

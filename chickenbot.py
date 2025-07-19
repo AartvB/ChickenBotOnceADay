@@ -296,7 +296,7 @@ class ChickenBot:
             self.handle_connection(keep_open)
             return
         
-        special_flairs = {'femacampcouncilor':'Chicken Lady','Jynxxie':'Puppy Lady','Dunge0nexpl0rer':'OG Chicken Follower','AartvB':'Bot Daddy'}
+        special_flairs = {'femacampcouncilor':'Chicken Lady','Jynxxie':'Puppy Lady','Dunge0nexpl0rer':'OG Chicken Follower','Aartvb':'Bot Daddy'}
         user_flair = ""
         if username in special_flairs:
             user_flair = special_flairs[username] + ' - '

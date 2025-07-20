@@ -275,6 +275,7 @@ class ChickenBot:
             if (i+1) % 20 == 0:
                 print("Recording post streaks for user", username, "post", i+1, "out of", len(posts))
             self.record_post_streak(post_id, keep_open=True)
+        self.record_streak(username, keep_open = True)
         self.handle_connection(keep_open)
 
     def record_all_empty_post_streaks(self, keep_open = False):

@@ -337,7 +337,7 @@ class ChickenBot:
     def get_author(self, submission):
         return submission.author.name if submission.author else "[deleted]"
 
-    def update_target_post(self, post_limit=5, keep_open = False):
+    def update_target_post(self, post_limit=8, keep_open = False):
         current_count = 0
 
         target_post = self.reddit.submission(id='1iulihu')

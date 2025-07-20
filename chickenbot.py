@@ -590,7 +590,7 @@ class ChickenBot:
                     self.cursor().execute("INSERT INTO deleted_posts (id, username, timestamp) VALUES (?, ?, ?)",
                                           (post_id, user, submission.created_utc))
                     self.conn().commit()
-                    self.cursor().execute("DELETE FROM chicken_posts WHERE id = ?", (submission.id,))
+                    self.cursor().execute("DELETE FROM chicken_posts WHERE id = ?", (post_id,))
                     self.conn().commit()
 
                     self.update_target_post(keep_open=True)

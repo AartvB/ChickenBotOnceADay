@@ -352,41 +352,59 @@ class ChickenBot:
                 post_number = int(submission.title)
                 if post_number == current_count + 1 or current_count == 0:
                     post_was_removed = False
-                    if not approved and submission.approved_by is None:
-                        earlier_posts = pd.read_sql("SELECT timestamp FROM chicken_posts WHERE username = ? ORDER BY timestamp DESC LIMIT 2", self.conn(), params=(self.get_author(submission),))
-                        earlier_posts.loc[len(earlier_posts)] = [submission.created_utc]
+                    deletion_occured = True
+                    while deletion_occured:
+                        if not approved and submission.approved_by is None:
+                            earlier_posts = pd.read_sql("SELECT id, timestamp FROM chicken_posts WHERE username = ? ORDER BY timestamp DESC LIMIT 2", self.conn(), params=(self.get_author(submission),))
+                            earlier_posts.loc[len(earlier_posts)] = [submission.id, submission.created_utc]
 
-                        # Ensure timestamp is datetime
-                        earlier_posts["timestamp"] = pd.to_datetime(earlier_posts["timestamp"], unit='s', utc=True)
+                            # Ensure timestamp is datetime
+                            earlier_posts["timestamp"] = pd.to_datetime(earlier_posts["timestamp"], unit='s', utc=True)
 
-                        double_post = True # Check if a user posted twice on the same calendar day
-                        for tz_name in pytz.common_timezones:
-                            tz = pytz.timezone(tz_name)
-                    
-                            # Convert timestamp to the specific timezone
-                            earlier_posts["local_time"] = earlier_posts["timestamp"].dt.tz_convert(tz)
-                            earlier_posts["post_date"] = earlier_posts["local_time"].dt.date  # Extract date part
-                            earlier_posts = earlier_posts.sort_values("post_date", ascending = False)
+                            double_post = True # Check if a user posted twice on the same calendar day
+                            for tz_name in pytz.common_timezones:
+                                tz = pytz.timezone(tz_name)
+                        
+                                # Convert timestamp to the specific timezone
+                                earlier_posts["local_time"] = earlier_posts["timestamp"].dt.tz_convert(tz)
+                                earlier_posts["post_date"] = earlier_posts["local_time"].dt.date  # Extract date part
+                                earlier_posts = earlier_posts.sort_values("post_date", ascending = False)
 
-                            # Check if all values in earlier_posts['post_date'] are unique
-                            if earlier_posts["post_date"].is_unique:
-                                double_post = False
-                                break
+                                # Check if all values in earlier_posts['post_date'] are unique
+                                if earlier_posts["post_date"].is_unique:
+                                    double_post = False
+                                    break
 
-                        if double_post:
-                            print(f"Double post detected: {submission.title}")
+                            if double_post:
+                                deletion_found_now = False
+                                for _, row in earlier_posts.iterrows():
+                                    ealier_submission = self.reddit.submission(id=row['id'])
+                                    if ealier_submission.selftext == "[deleted]" or ealier_submission.author is None:
+                                        deletion_found_now = True
+                                        break
 
-                            self.send_email('Removed double post', f'I removed post {submission.title} by {self.get_author(submission)} because it was a double post. You can find the post here: https://www.reddit.com/{submission.permalink}.')
+                                if deletion_found_now:
+                                    time.sleep(15)
+                                else:
+                                    deletion_occured = False
 
-                            comment_text = (
-                                f"This post has been removed because of your latest two or three posts, at least two have been on the same calendar day. You may post only once per calendar day. Please wait until the next calendar day to post again.\n\n^(This action was performed automatically by a bot. If you think it made a mistake, contact the mods via modmail. The code for this bot is fully open source, and can be found [here](https://github.com/AartvB/ChickenBotOnceADay).)"
-                            )
+                                    print(f"Double post detected: {submission.title}")
 
-                            # Remove the incorrect post
-                            submission.mod.remove()
-                            submission.mod.send_removal_message(comment_text)
+                                    self.send_email('Removed double post', f'I removed post {submission.title} by {self.get_author(submission)} because it was a double post. You can find the post here: https://www.reddit.com/{submission.permalink}.')
 
-                            post_was_removed = True
+                                    comment_text = (
+                                        f"This post has been removed because of your latest two or three posts, at least two have been on the same calendar day. You may post only once per calendar day. Please wait until the next calendar day to post again.\n\n^(This action was performed automatically by a bot. If you think it made a mistake, contact the mods via modmail. The code for this bot is fully open source, and can be found [here](https://github.com/AartvB/ChickenBotOnceADay).)"
+                                    )
+
+                                    # Remove the incorrect post
+                                    submission.mod.remove()
+                                    submission.mod.send_removal_message(comment_text)
+
+                                    post_was_removed = True
+                            else:
+                                deletion_occured = False
+                        else:
+                            deletion_occured = False
                     if not post_was_removed:
                         current_count = post_number
                         self.cursor().execute('INSERT OR IGNORE INTO chicken_posts (id, username, timestamp, approved, title) VALUES (?, ?, ?, 1, ?)',

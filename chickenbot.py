@@ -384,13 +384,14 @@ class ChickenBot:
                                         break
 
                                 if deletion_found_now:
+                                    print("Waiting 15 seconds due to post deletion")
                                     time.sleep(15)
                                 else:
                                     deletion_occured = False
 
                                     print(f"Double post detected: {submission.title}")
 
-                                    self.send_email('Removed double post', f'I removed post {submission.title} by {self.get_author(submission)} because it was a double post. You can find the post here: https://www.reddit.com/{submission.permalink}.')
+                                    self.send_email('Removed double post', f'I removed post {submission.title} by {self.get_author(submission)} because it was a double post. You can find the post here: https://www.reddit.com/{submission.permalink}.\nThe posts were as follows:\n\n{earlier_posts.to_string(index=False)}')
 
                                     comment_text = (
                                         f"This post has been removed because of your latest two or three posts, at least two have been on the same calendar day. You may post only once per calendar day. Please wait until the next calendar day to post again.\n\n^(This action was performed automatically by a bot. If you think it made a mistake, contact the mods via modmail. The code for this bot is fully open source, and can be found [here](https://github.com/AartvB/ChickenBotOnceADay).)"
@@ -578,6 +579,8 @@ class ChickenBot:
         self.cursor().execute("INSERT INTO deleted_posts (id, username, timestamp) VALUES (?, ?, ?)", (post_id, result[1], result[2]))
         self.cursor().execute("DELETE FROM chicken_posts WHERE id = ?",(post_id,))
         self.conn().commit()
+
+        print("Deleted post from database, now updating user streaks and flair.")
 
         self.record_post_streaks_user(result[1],keep_open=True)
         self.update_user_flair(result[1], keep_open = True)

@@ -378,14 +378,15 @@ class ChickenBot:
                             if double_post:
                                 deletion_found_now = False
                                 for _, row in earlier_posts.iterrows():
-                                    ealier_submission = self.reddit.submission(id=row['id'])
-                                    if ealier_submission.selftext == "[deleted]" or ealier_submission.author is None:
+                                    earlier_submission = self.reddit.submission(id=row['id'])
+                                    if (earlier_submission.selftext == "[deleted]" or earlier_submission.author is None) and earlier_submission.created_utc > time.time() - 5*60:
                                         deletion_found_now = True
                                         break
 
                                 if deletion_found_now:
                                     print("Waiting 15 seconds due to post deletion")
                                     time.sleep(15)
+                                    self.send_email("Waiting 15 seconds", f"I am waiting 15 seconds because I found a deleted post by {self.get_author(submission)}. The post was: {submission.title}. You can find the post here: https://www.reddit.com/{submission.permalink}.\nThe posts were as follows:\n\n{earlier_posts.to_string(index=False)}")
                                 else:
                                     deletion_occured = False
 

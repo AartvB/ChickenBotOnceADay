@@ -297,7 +297,7 @@ class ChickenBot:
             self.handle_connection(keep_open)
             return
         
-        special_flairs = {'femacampcouncilor':'Chicken Lady','Jynxxie':'Puppy Lady','Dunge0nexpl0rer':'OG Chicken Follower','Aartvb':'Bot Daddy'}
+        special_flairs = {'femacampcouncilor':'Chicken Lady','Dunge0nexpl0rer':'OG Chicken Follower','Aartvb':'Bot Daddy','Jynxxie':'The Caged One'}
         user_flair = ""
         if username in special_flairs:
             user_flair = special_flairs[username] + ' - '
@@ -395,7 +395,7 @@ class ChickenBot:
                                     self.send_email('Removed double post', f'I removed post {submission.title} by {self.get_author(submission)} because it was a double post. You can find the post here: https://www.reddit.com/{submission.permalink}.\nThe posts were as follows:\n\n{earlier_posts.to_string(index=False)}')
 
                                     comment_text = (
-                                        f"This post has been removed because of your latest two or three posts, at least two have been on the same calendar day. You may post only once per calendar day. Please wait until the next calendar day to post again.\n\n^(This action was performed automatically by a bot. If you think it made a mistake, contact the mods via modmail. The code for this bot is fully open source, and can be found [here](https://github.com/AartvB/ChickenBotOnceADay).)"
+                                        f"This post has been removed because of your latest two or three posts, at least two have been on the same calendar day. You may post only once per calendar day. Please wait until the next calendar day to post again.\nThe posts were as follows:\n\n{earlier_posts.to_string(index=False)}\n\n^(This action was performed automatically by a bot. If you think it made a mistake, contact the mods via modmail. The code for this bot is fully open source, and can be found [here](https://github.com/AartvB/ChickenBotOnceADay).)"
                                     )
 
                                     # Remove the incorrect post
@@ -607,7 +607,6 @@ class ChickenBot:
             print(f"Checking post {submission.title}")
             if submission.selftext == "[deleted]" or submission.author is None:
                 print("Post has been deleted!")
-                self.send_email('User removed post', f'{user} deleted post {submission.title}. You can find the post here: https://www.reddit.com/{submission.permalink}.')
                 try:
                     self.cursor().execute("INSERT INTO deleted_posts (id, username, timestamp) VALUES (?, ?, ?)",
                                           (post_id, user, submission.created_utc))
@@ -699,6 +698,8 @@ class ChickenBot:
         print("Updating top posts leaderboards")
 
         start_time = time.time()
+
+#        posts = pd.read_sql("SELECT id, username, title, timestamp FROM chicken_posts WHERE timestamp > ?", self.conn(), params=(int(time.time()) - 60*60*24*60,))  # Get posts from the last 60 days
         posts = pd.read_sql("SELECT id, username, title, timestamp FROM chicken_posts", self.conn())
         posts = posts.rename(columns={'username':'Username', 'title':'Count'})
         posts['Upvotes'] = None

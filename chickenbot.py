@@ -13,10 +13,26 @@ import os
 
 class ChickenBot:
     def __init__(self):
+        choice = input("For which subreddit do you want to activate the bot? Enter 1 for 'countwithchickenlady' or 2 for 'CWCLafterdark': ")
+        if choice == "1":
+            self.subredditname = "countwithchickenlady"
+        elif choice == "2":
+            self.subredditname = "CWCLafterdark"
+        else:
+            print("Invalid input!")
+            raise ValueError("Invalid input! Please enter 1 or 2.")
+
         # Setup reddit bot connection
         self.reddit = praw.Reddit('bot1')
         self.reddit.validate_on_submit = True
-        self.subreddit = self.reddit.subreddit("countwithchickenlady")
+        self.subreddit = self.reddit.subreddit(self.subredditname)
+
+        if self.subredditname == "countwithchickenlady":
+            self.current_count_link = "https://www.reddit.com/r/countwithchickenlady/comments/1iulihu"
+            self.target_post = self.reddit.submission(id='1iulihu')
+        elif self.subredditname == "CWCLafterdark":
+            self.current_count_link = "https://www.reddit.com/r/CWCLafterdark/comments/1nygkqd/"
+            self.target_post = self.reddit.submission(id='1nygkqd')
 
         # Setup email connection
         load_dotenv()
@@ -25,6 +41,10 @@ class ChickenBot:
         self.email_receiver = os.getenv('RECEIVER')
 
         # Setup database connection
+        if self.subredditname == "countwithchickenlady":
+            self.db = "chicken_bot"
+        elif self.subredditname == "CWCLafterdark":
+            self.db = "chkcken_bot_18plus"
         self.__connection_is_open = False
 
     def __del__(self):
@@ -37,7 +57,7 @@ class ChickenBot:
         if self.__connection_is_open:
             return
         self.__connection_is_open = True
-        self.__conn = sqlite3.connect("chicken_bot.db")
+        self.__conn = sqlite3.connect(self.db+'.db')
         self.__conn.row_factory = sqlite3.Row
         self.__cursor = self.__conn.cursor()
 
@@ -96,7 +116,7 @@ class ChickenBot:
         self.handle_connection(keep_open)
 
     def backup_database(self):
-        shutil.copy2('chicken_bot.db', f"chicken_bot backup {datetime.now().strftime('%Y-%m-%d %H.%M.%S')}.db")
+        shutil.copy2(self.db+'.db', f"{self.db} backup {datetime.now().strftime('%Y-%m-%d %H.%M.%S')}.db")
 
     def fill_database_after_failure(self, keep_open = False):
         for post in self.subreddit.new(limit=1000):  # Fetches the newest posts
@@ -297,7 +317,10 @@ class ChickenBot:
             self.handle_connection(keep_open)
             return
         
-        special_flairs = {'femacampcouncilor':'Chicken Lady','Dunge0nexpl0rer':'OG Chicken Follower','Aartvb':'Bot Daddy','Jynxxie':'The Caged One'}
+        if self.subredditname == "countwithchickenlady":
+            special_flairs = {'femacampcouncilor':'Chicken Lady','Dunge0nexpl0rer':'OG Chicken Follower','Aartvb':'Bot Daddy','Jynxxie':'The Caged One'}
+        else:
+            special_flairs = {}
         user_flair = ""
         if username in special_flairs:
             user_flair = special_flairs[username] + ' - '
@@ -339,8 +362,6 @@ class ChickenBot:
 
     def update_target_post(self, post_limit=8, keep_open = False):
         current_count = 0
-
-        target_post = self.reddit.submission(id='1iulihu')
 
         print("New check")
         for submission in reversed(list(self.subreddit.new(limit=post_limit))):
@@ -424,7 +445,7 @@ class ChickenBot:
 
                         # Leave a comment explaining the removal
                         comment_text = (
-                            f"This post has been removed because the correct next number was {current_count + 1}, but this post has '{post_number}' as title. Please check the most recent number before posting. You can find the correct number in [this](https://www.reddit.com/r/countwithchickenlady/comments/1iulihu) post.\n\nIt might be possible that someone else simply was slightly faster with their post.\n\nFeel free to post again with the correct new number.\n\n^(This action was performed automatically by a bot. If you think it made a mistake, contact the mods via modmail. The code for this bot is fully open source, and can be found [here](https://github.com/AartvB/ChickenBotOnceADay).)"
+                            f"This post has been removed because the correct next number was {current_count + 1}, but this post has '{post_number}' as title. Please check the most recent number before posting. You can find the correct number in [this]({self.current_count_link}) post.\n\nIt might be possible that someone else simply was slightly faster with their post.\n\nFeel free to post again with the correct new number.\n\n^(This action was performed automatically by a bot. If you think it made a mistake, contact the mods via modmail. The code for this bot is fully open source, and can be found [here](https://github.com/AartvB/ChickenBotOnceADay).)"
                         ) # TODO: ADD MORE VARIATION, FOR EXAMPLE WHEN IT IS ONLY 1 BELOW.
                 
                         # Remove the incorrect post
@@ -447,13 +468,13 @@ class ChickenBot:
 #                self.send_email('Removed post', f'I removed post {submission.title} by {self.get_author(submission)} because it did not use a number. You can find the post here: https://www.reddit.com/{submission.permalink}.')
 
                 # Leave a comment explaining the removal
-                comment_text = "This post has been removed because the title must be a number. Please only post the next number in sequence. You can find the correct number in [this](https://www.reddit.com/r/countwithchickenlady/comments/1iulihu) post.\n\n^(This action was performed automatically by a bot. If you think it made a mistake, contact the mods via modmail. The code for this bot is fully open source, and can be found [here](https://github.com/AartvB/ChickenBotOnceADay).)"
+                comment_text = f"This post has been removed because the title must be a number. Please only post the next number in sequence. You can find the correct number in [this]({self.current_count_link}) post.\n\n^(This action was performed automatically by a bot. If you think it made a mistake, contact the mods via modmail. The code for this bot is fully open source, and can be found [here](https://github.com/AartvB/ChickenBotOnceADay).)"
 
                 # Remove the incorrect post
                 submission.mod.remove()
                 submission.mod.send_removal_message(comment_text)
 
-        target_post.edit(f"The next number should be: [{current_count + 1}](https://www.reddit.com/r/countwithchickenlady/submit?title={current_count + 1})\n\n^(This comment is automatically updated by a bot. If you think it made a mistake, contact the mods via modmail. The code for this bot is fully open source, and can be found [here](https://github.com/AartvB/ChickenBotOnceADay).)")
+        self.target_post.edit(f"The next number should be: [{current_count + 1}](https://www.reddit.com/r/{self.subredditname}/submit?title={current_count + 1})\n\n^(This comment is automatically updated by a bot. If you think it made a mistake, contact the mods via modmail. The code for this bot is fully open source, and can be found [here](https://github.com/AartvB/ChickenBotOnceADay).)")
         self.handle_connection(keep_open)
 
     def add_COAD_streak(self, keep_open = False):
@@ -625,7 +646,7 @@ class ChickenBot:
     
     def start_maintenance(self):
         print('Started maintenance')
-        self.reddit.submission(id='1iulihu').edit(f"The bot is currently under maintenance. Our apologies for the inconvenience. Please [sort by new](https://www.reddit.com/r/countwithchickenlady/new/) to see what the next number in the sequence should be, and use this number as the title for your new post.\n\n^(If you think the bot made a mistake, contact the mods via modmail. The code for this bot is fully open source, and can be found [here](https://github.com/AartvB/ChickenBotOnceADay).)")
+        self.reddit.submission(id='1iulihu').edit(f"The bot is currently under maintenance. Our apologies for the inconvenience. Please [sort by new](https://www.reddit.com/r/{self.subredditname}/new/) to see what the next number in the sequence should be, and use this number as the title for your new post.\n\n^(If you think the bot made a mistake, contact the mods via modmail. The code for this bot is fully open source, and can be found [here](https://github.com/AartvB/ChickenBotOnceADay).)")
 
     def end_maintenance(self, keep_open=False):
         print('Ended maintenance')
@@ -653,7 +674,7 @@ class ChickenBot:
         posts['title'] = posts['title'].astype('int64')
         posts = posts.loc[posts.groupby('title')['timestamp'].idxmin().values]
         posts = posts.sort_values("title", ascending = False)
-        posts['title'] = posts.apply(lambda row: f"[{row['title']}](https://www.reddit.com/r/countwithchickenlady/comments/{row['id']})", axis=1)
+        posts['title'] = posts.apply(lambda row: f"[{row['title']}](https://www.reddit.com/r/{self.subredditname}/comments/{row['id']})", axis=1)
         posts['Date (UTC)'] = pd.to_datetime(posts['timestamp'], unit='s', utc=True).dt.date
         posts = posts[['username', 'title', 'Date (UTC)']]
         posts = posts.rename(columns={'username':'Username', 'title':'Count'})
@@ -677,7 +698,7 @@ class ChickenBot:
         posts['title'] = posts['title'].astype('int64')
         posts = posts.loc[posts.groupby('title')['timestamp'].idxmin().values]
         posts = posts.sort_values("title", ascending = False)
-        posts['title'] = posts.apply(lambda row: f"[{row['title']}](https://www.reddit.com/r/countwithchickenlady/comments/{row['id']})", axis=1)
+        posts['title'] = posts.apply(lambda row: f"[{row['title']}](https://www.reddit.com/r/{self.subredditname}/comments/{row['id']})", axis=1)
         posts['Date (UTC)'] = pd.to_datetime(posts['timestamp'], unit='s', utc=True).dt.date
         posts = posts[['username', 'title', 'Date (UTC)']]
         posts = posts.rename(columns={'username':'Username', 'title':'Count'})
@@ -716,7 +737,7 @@ class ChickenBot:
                 print(e)
                 time.sleep(30)
         
-        posts['Count'] = posts.apply(lambda row: f"[{row['Count']}](https://www.reddit.com/r/countwithchickenlady/comments/{row['id']})", axis=1)
+        posts['Count'] = posts.apply(lambda row: f"[{row['Count']}](https://www.reddit.com/r/{self.subredditname}/comments/{row['id']})", axis=1)
         posts['Date (UTC)'] = pd.to_datetime(posts['timestamp'], unit='s', utc=True).dt.date
         posts = posts.drop(columns=['id'])
 
@@ -776,7 +797,7 @@ class ChickenBot:
         posts['title'] = posts['title'].astype('int64')
         posts = posts.loc[posts.groupby('title')['timestamp'].idxmin().values]
         posts = posts.sort_values("title", ascending = False)
-        posts['title'] = posts.apply(lambda row: f"[{row['title']}](https://www.reddit.com/r/countwithchickenlady/comments/{row['id']})", axis=1)
+        posts['title'] = posts.apply(lambda row: f"[{row['title']}](https://www.reddit.com/r/{self.subredditname}/comments/{row['id']})", axis=1)
         posts['Date (UTC)'] = pd.to_datetime(posts['timestamp'], unit='s', utc=True).dt.date
         posts = posts[['username', 'title', 'Date (UTC)']]
         posts = posts.rename(columns={'username':'Username', 'title':'Count'})

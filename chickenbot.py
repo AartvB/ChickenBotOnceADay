@@ -203,7 +203,7 @@ class ChickenBot:
             COAD_streak = 0
             last_date = None
 
-            today_datetime = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+            today_datetime = datetime.fromtimestamp(timestamp, tz=tz)
             today = today_datetime.date()
             yesterday = (today_datetime - timedelta(days=1)).date()
 
@@ -571,7 +571,7 @@ class ChickenBot:
 
         print(f"Posts of user {username}:\n")
         for index, row in posts.iterrows():
-            print(f"Date/time: {row['local_time']}, post id: {row['id']}")
+            print(f"Date/time: {row['local_time']}, post: https://www.reddit.com/r/{self.subreddit}/comments/{row['id']}, recorded streak: {row['current_streak']}")
         print("")
 
         self.cursor().execute(f"SELECT * FROM COAD_posts WHERE username = ?", (username,))        

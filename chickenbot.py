@@ -167,7 +167,7 @@ class ChickenBot:
             timestamp = time.time()
 
         df = pd.read_sql("SELECT timestamp FROM chicken_posts WHERE username = ? AND timestamp <= ?", self.conn(), params=(username,timestamp))
-        self.cursor().execute(f"SELECT * FROM COAD_posts WHERE username = ?", (username,))
+        self.cursor().execute("SELECT * FROM COAD_posts WHERE username = ?", (username,))
         
         COAD_streak_info = self.cursor().fetchone()
 
@@ -298,25 +298,28 @@ class ChickenBot:
         self.record_streak(username, keep_open = True)
         self.handle_connection(keep_open)
 
-    def record_all_empty_post_streaks(self, keep_open = False):
+    def record_all_empty_post_streaks(self, batch_size = 5000, keep_open = False):
         print("Recording empty post streaks")
         posts = pd.read_sql("SELECT id FROM chicken_posts WHERE current_streak IS NULL OR current_COAD_streak IS NULL", self.conn())
         for i, post_id in enumerate(posts['id']):
+            if i == batch_size:
+                print(f"Batch size reached, {batch_size-(i+1)} left to do!")
+                break
 #            if (i+1) % 20 == 0:
             print("Recording empty post streaks", i+1, "out of", len(posts))
             self.record_post_streak(post_id, keep_open=True)
         self.handle_connection(keep_open)
         print("Finished recording empty post streaks")
 
-    def record_all_post_streaks(self, keep_open = False):
-        print("Recording post streaks")
-        posts = pd.read_sql("SELECT id FROM chicken_posts", self.conn())
-        for i, post_id in enumerate(posts['id']):
-#            if (i+1) % 20 == 0:
-            print("Recording post streaks", i+1, "out of", len(posts))
-            self.record_post_streak(post_id, keep_open=True)
-        self.handle_connection(keep_open)
-        print("Finished recording empty post streaks")
+#    def record_all_post_streaks(self, keep_open = False):
+#        print("Recording post streaks")
+#        posts = pd.read_sql("SELECT id FROM chicken_posts", self.conn())
+#        for i, post_id in enumerate(posts['id']):
+##            if (i+1) % 20 == 0:
+#            print("Recording post streaks", i+1, "out of", len(posts))
+#            self.record_post_streak(post_id, keep_open=True)
+#        self.handle_connection(keep_open)
+#        print("Finished recording empty post streaks")
 
     def update_user_flair(self, username, keep_open = False):
         self.cursor().execute("SELECT streak, COAD_streak FROM user_streaks WHERE username = ?", (username,))
@@ -372,6 +375,10 @@ class ChickenBot:
 
     def update_target_post(self, post_limit=8, keep_open = False):
         current_count = 0
+        if self.subreddit == 'countwithchickenlady':
+            current_count = 19520 # edit to new value after bot failure
+        elif self.subreddit == 'CWCLafterdark':
+            current_count = 355 # edit to new value after bot failure
 
         print("New check")
         for submission in reversed(list(self.subreddit.new(limit=post_limit))):
@@ -656,7 +663,7 @@ class ChickenBot:
     
     def start_maintenance(self):
         print('Started maintenance')
-        self.reddit.submission(id='1iulihu').edit(f"The bot is currently under maintenance. Our apologies for the inconvenience. Please [sort by new](https://www.reddit.com/r/{self.subredditname}/new/) to see what the next number in the sequence should be, and use this number as the title for your new post.\n\n^(If you think the bot made a mistake, contact the mods via modmail. The code for this bot is fully open source, and can be found [here](https://github.com/AartvB/ChickenBotOnceADay).)")
+        self.target_post.edit(f"The bot is currently under maintenance. Our apologies for the inconvenience. Please [sort by new](https://www.reddit.com/r/{self.subredditname}/new/) to see what the next number in the sequence should be, and use this number as the title for your new post.\n\n^(If you think the bot made a mistake, contact the mods via modmail. The code for this bot is fully open source, and can be found [here](https://github.com/AartvB/ChickenBotOnceADay).)")
 
     def end_maintenance(self, keep_open=False):
         print('Ended maintenance')

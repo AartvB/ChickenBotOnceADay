@@ -308,6 +308,16 @@ class ChickenBot:
         self.handle_connection(keep_open)
         print("Finished recording empty post streaks")
 
+    def record_all_post_streaks(self, keep_open = False):
+        print("Recording post streaks")
+        posts = pd.read_sql("SELECT id FROM chicken_posts", self.conn())
+        for i, post_id in enumerate(posts['id']):
+#            if (i+1) % 20 == 0:
+            print("Recording post streaks", i+1, "out of", len(posts))
+            self.record_post_streak(post_id, keep_open=True)
+        self.handle_connection(keep_open)
+        print("Finished recording empty post streaks")
+
     def update_user_flair(self, username, keep_open = False):
         self.cursor().execute("SELECT streak, COAD_streak FROM user_streaks WHERE username = ?", (username,))
         try:

@@ -298,7 +298,7 @@ class ChickenBot:
         self.record_streak(username, keep_open = True)
         self.handle_connection(keep_open)
 
-    def record_all_empty_post_streaks(self, batch_size = 1000, keep_open = False):
+    def record_all_empty_post_streaks(self, batch_size = 500, keep_open = False):
         print("Recording empty post streaks")
         posts = pd.read_sql("SELECT id FROM chicken_posts WHERE current_streak IS NULL OR current_COAD_streak IS NULL", self.conn())
         for i, post_id in enumerate(posts['id']):

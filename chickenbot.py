@@ -333,7 +333,7 @@ class ChickenBot:
 
     def record_post_statistics(self, n_days_history = 21):
         print(f'Recording post statistics for the past {n_days_history} days')
-        posts = pd.read_sql("SELECT id FROM chicken_posts WHERE timestamp >= ? OR comments = NULL OR upvotes = NULL", self.conn(), params=(time.time()-n_days_history*24*60*60,))
+        posts = pd.read_sql("SELECT id FROM chicken_posts WHERE timestamp >= ? OR comments IS NULL OR upvotes IS NULL", self.conn(), params=(time.time()-n_days_history*24*60*60,))
         for i, row in posts.iterrows():
             if (i+1) % 100 == 0:
                 print(f"Post {i+1} out of {len(posts)}")
@@ -810,7 +810,7 @@ class ChickenBot:
         seconds = int(time_taken % 60)
         self.send_email(
             'Top posts leaderboards updated',
-            f'The top posts leaderboards have been updated. It took {time_taken:.2f} seconds to update them. That is {hours}h {minutes}m {seconds}s'
+            f'The top posts leaderboards of {self.subredditname} have been updated. It took {time_taken:.2f} seconds to update them. That is {hours}h {minutes}m {seconds}s'
         )
 
         self.handle_connection(keep_open)

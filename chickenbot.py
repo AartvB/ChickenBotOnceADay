@@ -1,6 +1,7 @@
 import praw
 import sqlite3
 import pandas as pd
+import math
 import pytz
 import time
 from datetime import datetime, timezone, timedelta
@@ -416,18 +417,18 @@ class ChickenBot:
                     deletion_occured = True
                     while deletion_occured:
                         if not approved and submission.approved_by is None:
-                            earlier_posts = pd.read_sql("SELECT id, timestamp FROM chicken_posts WHERE username = ? ORDER BY timestamp DESC LIMIT 2", self.conn(), params=(self.get_author(submission),))
-                            earlier_posts.loc[len(earlier_posts)] = [submission.id, submission.created_utc]
+                            earlier_posts = pd.read_sql("SELECT id, timestamp, title FROM chicken_posts WHERE username = ? ORDER BY timestamp DESC LIMIT 2", self.conn(), params=(self.get_author(submission),))
+                            earlier_posts.loc[len(earlier_posts)] = [submission.id, submission.created_utc, submission.title]
 
                             # Ensure timestamp is datetime
-                            earlier_posts["timestamp"] = pd.to_datetime(earlier_posts["timestamp"], unit='s', utc=True)
+                            earlier_posts["datetime"] = pd.to_datetime(earlier_posts["timestamp"], unit='s', utc=True)
 
                             double_post = True # Check if a user posted twice on the same calendar day
                             for tz_name in pytz.common_timezones:
                                 tz = pytz.timezone(tz_name)
                         
                                 # Convert timestamp to the specific timezone
-                                earlier_posts["local_time"] = earlier_posts["timestamp"].dt.tz_convert(tz)
+                                earlier_posts["local_time"] = earlier_posts["datetime"].dt.tz_convert(tz)
                                 earlier_posts["post_date"] = earlier_posts["local_time"].dt.date  # Extract date part
                                 earlier_posts = earlier_posts.sort_values("post_date", ascending = False)
 
@@ -447,7 +448,6 @@ class ChickenBot:
                                 if deletion_found_now:
                                     print("Waiting 15 seconds due to post deletion")
                                     time.sleep(15)
-                                    self.send_email("Waiting 15 seconds", f"I am waiting 15 seconds because I found a deleted post by {self.get_author(submission)}. The post was: {submission.title}. You can find the post here: https://www.reddit.com/{submission.permalink}.\nThe posts were as follows:\n\n{earlier_posts.to_string(index=False)}")
                                 else:
                                     deletion_occured = False
 
@@ -455,9 +455,24 @@ class ChickenBot:
 
                                     self.send_email('Removed double post', f'I removed post {submission.title} by {self.get_author(submission)} because it was a double post. You can find the post here: https://www.reddit.com/{submission.permalink}.\nThe posts were as follows:\n\n{earlier_posts.to_string(index=False)}')
 
-                                    comment_text = (
-                                        f"This post has been removed because of your latest two or three posts, at least two have been on the same calendar day. You may post only once per calendar day. Please wait until the next calendar day to post again.\nThe posts were as follows:\n\n{earlier_posts.to_string(index=False)}\n\n^(This action was performed automatically by a bot. If you think it made a mistake, contact the mods via modmail. The code for this bot is fully open source, and can be found [here](https://github.com/AartvB/ChickenBotOnceADay).)"
-                                    )
+                                    comment_text = "This post has been removed because of your latest two or three posts, at least two have been on the same calendar day. You may post only once per calendar day. Please wait until the next calendar day to post again.\nThe posts were as follows:\n\n"
+                                    now = time.time()
+
+                                    for index, row in earlier_posts.iterrows():
+                                        earlier_submission = self.reddit.submission(id=row['id'])
+                                        # Convert Unix timestamp to datetime
+                                        past = row['timestamp']
+
+                                        # Difference
+                                        diff = now - past
+                                        
+                                        days = math.floor(diff / 86400)  # 86400 seconds in a day
+                                        hours = math.floor((diff % 86400) / 3600)
+                                        minutes = math.floor((diff % 3600) / 60)
+                                        seconds = math.floor(diff % 60)
+
+                                        comment_text += f"{days} days, {hours} hours, {minutes} minutes and {seconds} seconds ago: [{row['title']}](https://www.reddit.com/{earlier_submission.permalink})\n\n"
+                                    comment_text += "^(This action was performed automatically by a bot. If you think it made a mistake, contact the mods via modmail. The code for this bot is fully open source, and can be found [here](https://github.com/AartvB/ChickenBotOnceADay).)"
 
                                     # Remove the incorrect post
                                     submission.mod.remove()
@@ -659,7 +674,7 @@ class ChickenBot:
         print("Checking for deleted posts")
 
         current_time = int(time.time())
-        df = pd.read_sql_query("SELECT * FROM chicken_posts WHERE timestamp >= ?", self.conn(), params=(current_time-600,))
+        df = pd.read_sql("SELECT * FROM chicken_posts WHERE timestamp >= ?", self.conn(), params=(current_time-600,))
         for _, row in df.iterrows():
             post_id = row['id']
             user = row['username']

@@ -339,7 +339,8 @@ class ChickenBot:
                 print(f"Post {i+1} out of {len(posts)}")
             while True:
                 try:
-                    self.record_post_statistic(row['id'])
+                    self.record_post_statistic(row['id'],True)
+                    break
                 except Exception as e:
                     print(e)
                     time.sleep(30)

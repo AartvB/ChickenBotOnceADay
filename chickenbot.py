@@ -87,7 +87,9 @@ class ChickenBot:
                     approved BOOLEAN,
                     title TEXT,
                     current_streak INTEGER,
-                    current_COAD_streak INTEGER
+                    current_COAD_streak INTEGER,
+                    upvotes INTEGER DEFAULT NULL,
+                    comments INTEGER DEFAULT NULL
             )
         ''')
         self.cursor().execute('''
@@ -314,6 +316,33 @@ class ChickenBot:
                     time.sleep(10)
         self.handle_connection(keep_open)
         print("Finished recording empty post streaks")
+
+    def record_post_statistic(self, post_id, keep_open = False):
+        self.cursor().execute("SELECT 1 FROM chicken_posts WHERE id = ?",(post_id,))
+        if (self.cursor().fetchone() is None):
+            raise Exception(f"Post {post_id} has not been found in the database!")
+        post = self.reddit.submission(post_id)
+        upvotes = post.score
+        post.comments.replace_more(limit=None)
+        comments = len(post.comments.list())
+
+        self.cursor().execute("UPDATE chicken_posts SET comments = ?, upvotes = ? WHERE id = ?", (comments, upvotes, post_id))
+        self.conn().commit()
+        self.handle_connection(keep_open)
+
+    def record_post_statistics(self, n_days_history = 21):
+        print(f'Recording post statistics for the past {n_days_history} days')
+        posts = pd.read_sql("SELECT id FROM chicken_posts WHERE timestamp >= ? OR comments = NULL OR upvotes = NULL", self.conn(), params=(time.time()-n_days_history*24*60*60,))
+        for i, row in posts.iterrows():
+            if (i+1) % 100 == 0:
+                print(f"Post {i+1} out of {len(posts)}")
+            while True:
+                try:
+                    self.record_post_statistic(row['id'])
+                except Exception as e:
+                    print(e)
+                    time.sleep(30)
+        print('Finished recording post statistics')
 
     def update_user_flair(self, username, keep_open = False):
         self.cursor().execute("SELECT streak, COAD_streak FROM user_streaks WHERE username = ?", (username,))
@@ -678,52 +707,35 @@ class ChickenBot:
         self.subreddit.wiki['counts'].edit(wiki_text, reason = 'Hourly update')
         self.handle_connection(keep_open)
 
-    def update_100_count_leaderboard(self, keep_open=False):
-        print("Updating 100 counts leaderboard")
+    def update_whole_counts_leaderboard(self, keep_open = False):
+        print("Updating whole counts leaderboards")
+        n_zeroes = 1
+        while True:
+            zeroes_string = n_zeroes*'0'
+            print(f"Updating 1{zeroes_string}s leaderboard")
 
-        posts = pd.read_sql("SELECT username, title, id, timestamp FROM chicken_posts WHERE title LIKE '%00' ORDER BY CAST(title AS UNSIGNED) DESC LIMIT 1000", self.conn()) # TODO: Implement LIMIT 1000 differently
-        posts['title'] = posts['title'].astype('int64')
-        posts = posts.loc[posts.groupby('title')['timestamp'].idxmin().values]
-        posts = posts.sort_values("title", ascending = False)
-        posts['title'] = posts.apply(lambda row: f"[{row['title']}](https://www.reddit.com/r/{self.subredditname}/comments/{row['id']})", axis=1)
-        posts['Date (UTC)'] = pd.to_datetime(posts['timestamp'], unit='s', utc=True).dt.date
-        posts = posts[['username', 'title', 'Date (UTC)']]
-        posts = posts.rename(columns={'username':'Username', 'title':'Count'})
-        full_list = posts.to_markdown(index=False)
+            posts = pd.read_sql("SELECT username, title, id, timestamp FROM chicken_posts WHERE title LIKE ?", self.conn(),params=(f"%{zeroes_string}",))
+            if (len(posts) == 0):
+                break
+            posts['title'] = posts['title'].astype('int64')
+            posts = posts.loc[posts.groupby('title')['timestamp'].idxmin().values]
+            posts = posts.sort_values("title", ascending = False)
+            posts['title'] = posts.apply(lambda row: f"[{row['title']}](https://www.reddit.com/r/{self.subredditname}/comments/{row['id']})", axis=1)
+            posts['Date (UTC)'] = pd.to_datetime(posts['timestamp'], unit='s', utc=True).dt.date
+            posts = posts[['username', 'title', 'Date (UTC)']]
+            posts = posts.rename(columns={'username':'Username', 'title':'Count'})
+            full_list = posts.head(1000).to_markdown(index=False)
 
-        ranking = posts['Username'].value_counts().reset_index()
-        ranking.columns = ['Username', "Number of 100's"]
-        ranking['Rank'] = ranking["Number of 100's"].rank(method='min', ascending=False).astype(int)
-        ranking = ranking[['Rank', 'Username', "Number of 100's"]]
-        leaderboard = ranking.to_markdown(index=False)
+            ranking = posts['Username'].value_counts().reset_index()
+            ranking.columns = ['Username', f"Number of 1{zeroes_string}'s"]
+            ranking['Rank'] = ranking[f"Number of 1{zeroes_string}'s"].rank(method='min', ascending=False).astype(int)
+            ranking = ranking[['Rank', 'Username', f"Number of 1{zeroes_string}'s"]]
+            leaderboard = ranking.to_markdown(index=False)
 
-        wiki_text = "#100 counts\n\nThis page shows which users have counted to a number divisible by 100, and how many times!\n\n"+leaderboard+"\n\n"+full_list
+            wiki_text = f"#1{zeroes_string} counts\n\nThis page shows which users have counted to a number divisible by 1{zeroes_string}, and how many times!\n\n"+leaderboard+"\n\n"+full_list
 
-        self.subreddit.wiki['100s'].edit(wiki_text, reason = 'Hourly update')
-        self.handle_connection(keep_open)
-
-    def update_1000_count_leaderboard(self, keep_open=False):
-        print("Updating 1000 counts leaderboard")
-
-        posts = pd.read_sql("SELECT username, title, id, timestamp FROM chicken_posts WHERE title LIKE '%000' ORDER BY CAST(title AS UNSIGNED) DESC LIMIT 1000", self.conn()) # TODO: Implement LIMIT 1000 differently
-        posts['title'] = posts['title'].astype('int64')
-        posts = posts.loc[posts.groupby('title')['timestamp'].idxmin().values]
-        posts = posts.sort_values("title", ascending = False)
-        posts['title'] = posts.apply(lambda row: f"[{row['title']}](https://www.reddit.com/r/{self.subredditname}/comments/{row['id']})", axis=1)
-        posts['Date (UTC)'] = pd.to_datetime(posts['timestamp'], unit='s', utc=True).dt.date
-        posts = posts[['username', 'title', 'Date (UTC)']]
-        posts = posts.rename(columns={'username':'Username', 'title':'Count'})
-        full_list = posts.to_markdown(index=False)
-
-        ranking = posts['Username'].value_counts().reset_index()
-        ranking.columns = ['Username', "Number of 1000's"]
-        ranking['Rank'] = ranking["Number of 1000's"].rank(method='min', ascending=False).astype(int)
-        ranking = ranking[['Rank', 'Username', "Number of 1000's"]]
-        leaderboard = ranking.to_markdown(index=False)
-
-        wiki_text = "#1000 counts\n\nThis page shows which users have counted to a number divisible by 1000, and how many times!\n\n"+leaderboard+"\n\n"+full_list
-
-        self.subreddit.wiki['1000s'].edit(wiki_text, reason = 'Hourly update')
+            self.subreddit.wiki[f'1{zeroes_string}s'].edit(wiki_text, reason = f'New 1{zeroes_string} number')
+            n_zeroes += 1
         self.handle_connection(keep_open)
 
     def update_top_posts_leaderboards(self, keep_open=False):
@@ -731,26 +743,13 @@ class ChickenBot:
 
         start_time = time.time()
 
-#        posts = pd.read_sql("SELECT id, username, title, timestamp FROM chicken_posts WHERE timestamp > ?", self.conn(), params=(int(time.time()) - 60*60*24*60,))  # Get posts from the last 60 days
-        posts = pd.read_sql("SELECT id, username, title, timestamp FROM chicken_posts", self.conn())
-        posts = posts.rename(columns={'username':'Username', 'title':'Count'})
-        posts['Upvotes'] = None
-        posts['Comments'] = None
-        for index, row in posts.iterrows():
-            if (index+1) % 100 == 0:
-                print(f"Post {index+1} out of {len(posts)}")
-            try:
-                post = self.reddit.submission(id=row['id'])
-                posts.loc[index, 'Upvotes'] = post.score
-                post.comments.replace_more(limit=None)
-                posts.loc[index, 'Comments'] = len(post.comments.list())
-            except Exception as e:
-                print(e)
-                time.sleep(30)
-        
+        self.record_post_statistics()
+
+        posts = pd.read_sql("SELECT id, username, title, upvotes, comments, timestamp FROM chicken_posts", self.conn())
+        posts = posts.rename(columns={'username':'Username', 'title':'Count', 'upvotes':'Upvotes','comments': 'Comments'})
+
         posts['Count'] = posts.apply(lambda row: f"[{row['Count']}](https://www.reddit.com/r/{self.subredditname}/comments/{row['id']})", axis=1)
         posts['Date (UTC)'] = pd.to_datetime(posts['timestamp'], unit='s', utc=True).dt.date
-        posts = posts.drop(columns=['id'])
 
         df_upvotes = posts[['Upvotes','Username','Count', 'Date (UTC)']]
         df_upvotes = df_upvotes.copy()
@@ -780,10 +779,10 @@ class ChickenBot:
         ranking_comments = ranking_comments[['Rank', 'Username', "Number of appearences in top 100"]]
         appearences_comments_leaderboard = ranking_comments.to_markdown(index=False)
 
-        wiki_text_comments = "#Most comments\n\nThis page shows the posts with the most comments of this sub!\n\n##Leaderboard\n"+appearences_comments_leaderboard+"\n\n##Comments\n"+comment_leaderboard
+        wiki_text_comments = "#Most comments\n\nThis page shows the posts with the most comments of this sub!\nNote: Comment count is stored locally, and will only be updated up to 21 days after the post is posted. Let us know (via mod mail) if the comment count of a specific post has increase significantly since then, so we can update the comment count manually.\n\n##Leaderboard\n"+appearences_comments_leaderboard+"\n\n##Comments\n"+comment_leaderboard
         self.subreddit.wiki['most_comments'].edit(wiki_text_comments, reason = 'Daily update')
 
-        wiki_text_upvotes = "#Top posts\n\nThis page shows the posts with the most upvotes of this sub!\n\n##Leaderboard\n"+appearences_upvotes_leaderboard+"\n\n##Upvotes\n"+upvote_leaderboard
+        wiki_text_upvotes = "#Top posts\n\nThis page shows the posts with the most upvotes of this sub!\n Note: Upvote count is stored locally, and will only be updated up to 21 days after the post is posted. Let us know (via mod mail) if the upvote count of a specific post has increase significantly since then, so we can update the comment count manually.\n\n##Leaderboard\n"+appearences_upvotes_leaderboard+"\n\n##Upvotes\n"+upvote_leaderboard
         self.subreddit.wiki['most_upvotes'].edit(wiki_text_upvotes, reason = 'Daily update')
 
         time_taken = time.time() - start_time
@@ -820,9 +819,34 @@ class ChickenBot:
         ranking = ranking[['Rank', 'Username', "Number of appearences"]]
         leaderboard = ranking.to_markdown(index=False)
 
-        wiki_text = "#Identical digits\n\nThis page shows which users have counted to a number that has only identcal digits, and how many times!\n\n"+leaderboard+"\n\n"+full_list
+        wiki_text = "#Identical digits\n\nThis page shows which users have counted to a number that has only identical digits, and how many times!\n\n"+leaderboard+"\n\n"+full_list
 
-        self.subreddit.wiki['identical_digits'].edit(wiki_text, reason = 'Hourly update')
+        self.subreddit.wiki['identical_digits'].edit(wiki_text, reason = 'New identical digit number')
+        self.handle_connection(keep_open)
+
+    def update_palindrome_leaderboard(self, keep_open=False):
+        print("Updating palindrome leaderboard")
+
+        posts = pd.read_sql("SELECT id, username, title, timestamp FROM chicken_posts", self.conn())
+        posts = posts[posts['title'] == posts['title'].str[::-1]]
+        posts['title'] = posts['title'].astype('int64')
+        posts = posts.loc[posts.groupby('title')['timestamp'].idxmin().values]
+        posts = posts.sort_values("title", ascending = False)
+        posts['title'] = posts.apply(lambda row: f"[{row['title']}](https://www.reddit.com/r/{self.subredditname}/comments/{row['id']})", axis=1)
+        posts['Date (UTC)'] = pd.to_datetime(posts['timestamp'], unit='s', utc=True).dt.date
+        posts = posts[['username', 'title', 'Date (UTC)']]
+        posts = posts.rename(columns={'username':'Username', 'title':'Count'})
+        full_list = posts.to_markdown(index=False)
+
+        ranking = posts['Username'].value_counts().reset_index()
+        ranking.columns = ['Username', "Number of appearences"]
+        ranking['Rank'] = ranking["Number of appearences"].rank(method='min', ascending=False).astype(int)
+        ranking = ranking[['Rank', 'Username', "Number of appearences"]]
+        leaderboard = ranking.to_markdown(index=False)
+
+        wiki_text = "#Palindromes\n\nThis page shows which users have counted to palindrome numbers (numbers that are the same backwards as forwards), and how many times!\n\n"+leaderboard+"\n\n"+full_list
+
+        self.subreddit.wiki['palindrome_numbers'].edit(wiki_text, reason = 'New palindrome number')
         self.handle_connection(keep_open)
 
     def update_streak_leaderboard(self, keep_open=False):

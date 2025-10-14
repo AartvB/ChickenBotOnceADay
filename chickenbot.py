@@ -298,28 +298,22 @@ class ChickenBot:
         self.record_streak(username, keep_open = True)
         self.handle_connection(keep_open)
 
-    def record_all_empty_post_streaks(self, batch_size = 500, keep_open = False):
+    def record_empty_post_streaks(self, batch_size = 500, keep_open = False):
         print("Recording empty post streaks")
         posts = pd.read_sql("SELECT id FROM chicken_posts WHERE current_streak IS NULL OR current_COAD_streak IS NULL", self.conn())
         for i, post_id in enumerate(posts['id']):
             if i == batch_size:
-                print(f"Batch size reached, {batch_size-(i+1)} left to do!")
+                print(f"Batch size reached, {len(posts)-i} left to do!")
                 break
-#            if (i+1) % 20 == 0:
             print("Recording empty post streaks", i+1, "out of", len(posts))
-            self.record_post_streak(post_id, keep_open=True)
+            for j in range(0,10):
+                try:
+                    self.record_post_streak(post_id, keep_open=True)
+                except:
+                    print("Error, try again in 10 seconds")
+                    time.sleep(10)
         self.handle_connection(keep_open)
         print("Finished recording empty post streaks")
-
-#    def record_all_post_streaks(self, keep_open = False):
-#        print("Recording post streaks")
-#        posts = pd.read_sql("SELECT id FROM chicken_posts", self.conn())
-#        for i, post_id in enumerate(posts['id']):
-##            if (i+1) % 20 == 0:
-#            print("Recording post streaks", i+1, "out of", len(posts))
-#            self.record_post_streak(post_id, keep_open=True)
-#        self.handle_connection(keep_open)
-#        print("Finished recording empty post streaks")
 
     def update_user_flair(self, username, keep_open = False):
         self.cursor().execute("SELECT streak, COAD_streak FROM user_streaks WHERE username = ?", (username,))

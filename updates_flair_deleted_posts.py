@@ -8,6 +8,7 @@ def check_for_deleted_posts():
     cb.check_for_deleted_posts()
 
 def extra_streak_check():
+    cb.record_empty_post_streaks(keep_open=True)
     cb.record_all_streaks(keep_open=True)
     cb.update_all_flair()
 

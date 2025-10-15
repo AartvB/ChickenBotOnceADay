@@ -332,8 +332,8 @@ class ChickenBot:
         self.handle_connection(keep_open)
 
     def record_post_statistics(self, n_days_history = 21):
-        print(f'Recording post statistics for the past {n_days_history} days')
         posts = pd.read_sql("SELECT id FROM chicken_posts WHERE timestamp >= ? OR comments IS NULL OR upvotes IS NULL", self.conn(), params=(time.time()-n_days_history*24*60*60,))
+        print(f'Recording post statistics for the past {n_days_history} days: {len(posts)} posts')
         for i, row in posts.iterrows():
             if (i+1) % 100 == 0:
                 print(f"Post {i+1} out of {len(posts)}")
@@ -795,10 +795,10 @@ class ChickenBot:
         ranking_comments = ranking_comments[['Rank', 'Username', "Number of appearences in top 100"]]
         appearences_comments_leaderboard = ranking_comments.to_markdown(index=False)
 
-        wiki_text_comments = "#Most comments\n\nThis page shows the posts with the most comments of this sub!\nNote: Comment count is stored locally, and will only be updated up to 21 days after the post is posted. Let us know (via mod mail) if the comment count of a specific post has increase significantly since then, so we can update the comment count manually.\n\n##Leaderboard\n"+appearences_comments_leaderboard+"\n\n##Comments\n"+comment_leaderboard
+        wiki_text_comments = "#Most comments\n\nThis page shows the posts with the most comments of this sub!\n\nNote: Comment count is stored locally, and will only be updated up to 21 days after the post is posted. Let us know (via mod mail) if the comment count of a specific post has increase significantly since then, so we can update the comment count manually.\n\n##Leaderboard\n"+appearences_comments_leaderboard+"\n\n##Comments\n"+comment_leaderboard
         self.subreddit.wiki['most_comments'].edit(wiki_text_comments, reason = 'Daily update')
 
-        wiki_text_upvotes = "#Top posts\n\nThis page shows the posts with the most upvotes of this sub!\n Note: Upvote count is stored locally, and will only be updated up to 21 days after the post is posted. Let us know (via mod mail) if the upvote count of a specific post has increase significantly since then, so we can update the comment count manually.\n\n##Leaderboard\n"+appearences_upvotes_leaderboard+"\n\n##Upvotes\n"+upvote_leaderboard
+        wiki_text_upvotes = "#Top posts\n\nThis page shows the posts with the most upvotes of this sub!\n\nNote: Upvote count is stored locally, and will only be updated up to 21 days after the post is posted. Let us know (via mod mail) if the upvote count of a specific post has increase significantly since then, so we can update the upvote count manually.\n\n##Leaderboard\n"+appearences_upvotes_leaderboard+"\n\n##Upvotes\n"+upvote_leaderboard
         self.subreddit.wiki['most_upvotes'].edit(wiki_text_upvotes, reason = 'Daily update')
 
         time_taken = time.time() - start_time

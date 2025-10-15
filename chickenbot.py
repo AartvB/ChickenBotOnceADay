@@ -302,8 +302,8 @@ class ChickenBot:
         self.handle_connection(keep_open)
 
     def record_empty_post_streaks(self, batch_size = 500, keep_open = False):
-        print("Recording empty post streaks")
         posts = pd.read_sql("SELECT id FROM chicken_posts WHERE current_streak IS NULL OR current_COAD_streak IS NULL", self.conn())
+        print(f"Recording empty post streaks: {min(batch_size,len(posts))} posts will be handled during this function call.")
         for i, post_id in enumerate(posts['id']):
             if i == batch_size:
                 print(f"Batch size reached, {len(posts)-i} left to do!")

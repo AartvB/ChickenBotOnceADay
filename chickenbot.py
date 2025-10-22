@@ -6,6 +6,7 @@ import pytz
 import time
 from datetime import datetime, timezone, timedelta
 import shutil
+import re
 
 def wrap_method(method):
     # (Almost) all methods are wrapped within this method.
@@ -357,6 +358,13 @@ class ChickenBot(metaclass=AutoPostCallMeta):
                     time.sleep(30)
         print('Finished recording post statistics')
 
+    def get_text_from_flair(self, text):
+        match = re.match(r'^Streak: \d+$', text)
+        if match:
+            return ''
+        match = re.match(r'^(.*) - Streak: \d+$', text)
+        return match.group(1) if match else text
+
     def update_user_flair(self, username):
         self.cursor().execute("SELECT streak, COAD_streak FROM user_streaks WHERE username = ?", (username,))
         try:
@@ -365,17 +373,6 @@ class ChickenBot(metaclass=AutoPostCallMeta):
             print(f"Failed to fetch streak for {username}: {e}")
             return
         
-        if self.subredditname == "countwithchickenlady":
-            special_flairs = {'femacampcouncilor':'Chicken Lady','Dunge0nexpl0rer':'OG Chicken Follower','Aartvb':'Bot Daddy','Jynxxie':'The Caged One'}
-        else:
-            special_flairs = {}
-        user_flair = ""
-        if username in special_flairs:
-            user_flair = special_flairs[username] + ' - '
-        user_flair += "Streak: " + str(streak)
-        if username == "chickenbotonceaday":
-            user_flair = "Streak: 3.1415926535"
-
         try:
             # Check if the user exists in the subreddit
             user = self.reddit.redditor(username)
@@ -383,6 +380,15 @@ class ChickenBot(metaclass=AutoPostCallMeta):
             # Get current flair
             flair_generator = self.subreddit.flair(username)
             current_flair = next(flair_generator, None)['flair_text']
+
+            flair_text = self.get_text_from_flair(current_flair)
+
+            user_flair = ""
+            if flair_text != '':
+                user_flair = flair_text + ' - '
+            user_flair += "Streak: " + str(streak)
+            if username == "chickenbotonceaday":
+                user_flair = "Streak: 3.1415926535"
 
             # Set the user's flair
             if current_flair != user_flair:

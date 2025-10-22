@@ -160,7 +160,7 @@ class ChickenBot(metaclass=AutoPostCallMeta):
         self.conn().commit()
         self.record_all_streaks()
 
-    def get_all_posts(self, usernamee):
+    def get_all_posts(self, username):
         posts = pd.read_sql("SELECT * FROM chicken_posts WHERE username = ?", self.conn(), params=(username,))
         deleted_posts = pd.read_sql("SELECT * FROM deleted_posts WHERE username = ?", self.conn(), params=(username,))
         return posts, deleted_posts

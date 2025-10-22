@@ -119,22 +119,22 @@ class ChickenBot(metaclass=AutoPostCallMeta):
             )
         ''')
         self.cursor().execute('''
-            CREATE TABLE IF NOT EXISTS  COAD_posts (
+            CREATE TABLE IF NOT EXISTS COAD_posts (
                 username TEXT PRIMARY KEY,
                 post_id TEXT,
                 streak INTEGER
             )
         ''')
         self.cursor().execute('''
-            CREATE TABLE IF NOT EXISTS  user_streaks (
+            CREATE TABLE IF NOT EXISTS user_streaks (
                     timestamp INTEGER,
-                    username TEXT  PRIMARY KEY,
+                    username TEXT PRIMARY KEY,
                     streak INTEGER,
                     COAD_streak INTEGER
                 )
         ''')
         self.cursor().execute('''
-            CREATE TABLE IF NOT EXISTS  deleted_posts (
+            CREATE TABLE IF NOT EXISTS deleted_posts (
                 id TEXT PRIMARY KEY,
                 username TEXT,
                 timestamp INTEGER
@@ -263,13 +263,19 @@ class ChickenBot(metaclass=AutoPostCallMeta):
         users = self.get_all_users(keep_open=True)
         streaks = {}
 
-        for user_no, user in enumerate(users):                        
+        for user_no, user in enumerate(users):
             if (user_no+1) % 20 == 0:
                 print(f"user {user_no+1} out of {len(users)}")
             streaks[user] = {}
-            streaks[user]['normal'], streaks[user]['COAD'] = self.calculate_streak(user, keep_open=True)
+            while True:
+                try:
+                    streaks[user]['normal'], streaks[user]['COAD'] = self.calculate_streak(user, keep_open=True)
+                except:
+                    print("Error, try again in 10 seconds")
+                    time.sleep(10)
+                break
     
-        for user, streak in zip(users, streaks):
+        for user, streak in streaks.items():
             self.cursor().execute("""
                 INSERT INTO user_streaks (timestamp, username, streak, COAD_streak)
                 VALUES (CURRENT_TIMESTAMP, ?, ?, ?)

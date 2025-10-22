@@ -11,20 +11,20 @@ The code cannot be run in its current state. To run it, you need to:
 3. Run the setup_database function
 4. Give the bot account mod access in the r/countwithchickenlady subreddit
 
-If you have done this, you should be able to run this bot by running the 'total_update.py' file, the 'flair_deleted_post_update.py' file and the 'update_leaderboards.py' file.
-
 ## Usage
+After you finished the setup (see above), you should be able to run this bot by running the ```total_update.py``` file, the ```flair_deleted_post_update.py``` file and the ```update_leaderboards.py``` file.
+
 When the bot has been shut down for a while, before turning the bot on again, you should first run the fill_database_after_failure function.
 
-If someone complains about their user streak (usually via mod mail), you can run the check_player_streak function. It shows all posts of a user, and their streaks at the time of making the posts. This is very helpful with finding out why someones streak shows unexpected behavior. Usually the problem can be solved by deleting a post from the streak database, using the delete_post function.
+If someone complains about their user streak (usually via mod mail), you can run the ```check_player_streak``` function. It shows all posts of a user, and their streaks at the time of making the posts. This is very helpful with finding out why someones streak shows unexpected behavior. Usually the problem can be solved by deleting a post from the streak database, using the ```delete_post``` function.
 
-People who started their streak on r/CountOnceADay, but transferred to this subreddit, are allowed to carry over their streak. If someone requests this, use the add_COAD_streak function.
+People who started their streak on r/CountOnceADay, but transferred to this subreddit, are allowed to carry over their streak. If someone requests this, use the ```add_COAD_streak``` function.
 
 ## Functionalities
 The bot does the following things:
 - Check if the post is titled correctly. It should be a whole number, exactly 1 higher than the post before it. If it is not titled correctly, it is automatically removed.
 - Check if the user does not post more than once per calendar day. It removes any latest post of a user if in the last 2 days, 3 or more posts have been on the same calendar day. We decided to not make it stricter (for example, max. 8 posts in the last 7 calendar days), since that could be confusing to most people. As long as there exists a timezone for which this is not the case, it is okay.
-- The posts is not deleted if it is manually approved by a moderator, or if it has been added to the database manually.
+- The posts is not deleted if it is manually approved by a moderator, or if it has been added to the database manually or automatically.
 - Update the user streaks. The streak of a user is the number of days the user has posted exactly 1 times per calendar day, until today. If someone hasn't posted for a full day, their post is reset to 0. The bot checks the streak for every possible timezone, and pick the longest streak. The streak is shown as user flair.
 - Update the post that tells user what the correct next number is.
 - Update the leaderboards on the wiki, that show interesting statistics of users and posts.

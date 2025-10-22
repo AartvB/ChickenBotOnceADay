@@ -5,81 +5,106 @@ import math
 import pytz
 import time
 from datetime import datetime, timezone, timedelta
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 import shutil
-from dotenv import load_dotenv
-import os
 
-class ChickenBot:
+def wrap_method(method):
+    # (Almost) all methods are wrapped within this method.
+    # It makes sure the database connection stays open when the
+    # keyword 'keep_open' is set to True.
+    # If the keyword is omitted, the database connection will be closed,
+    # unless somewhere else up in the call stack, keep_open was set to True
+
+    # This way, the database connection is automatically handled,
+    # and doesn't need any attention.
+    def wrapped(self, *args, **kwargs): 
+        previously_keep_open = self._keep_open
+        self._keep_open = kwargs.pop('keep_open', previously_keep_open) or previously_keep_open
+
+        self._call_stack.append(method.__name__)
+
+        result = method(self, *args, **kwargs)
+
+        self._call_stack.pop()
+        if not self._call_stack:
+            self.handle_connection(self._keep_open)
+
+        if not previously_keep_open:
+            self._keep_open = False
+
+        return result
+    return wrapped
+
+class AutoPostCallMeta(type):
+    # metclass to use the wrap_method defined above.
+    def __new__(cls, name, bases, class_dict):
+        new_dict = {}
+        for attr_name, attr_value in class_dict.items():
+            if callable(attr_value) and not attr_name.startswith("__") and attr_name not in ['handle_connection', 'connection_is_open', 'open_connection', 'close_connection', 'conn', 'cursor']:
+                attr_value = wrap_method(attr_value)
+            new_dict[attr_name] = attr_value
+
+        return type.__new__(cls, name, bases, new_dict)
+
+class ChickenBot(metaclass=AutoPostCallMeta):
     def __init__(self):
-        choice = input("For which subreddit do you want to activate the bot? Enter 1 for 'countwithchickenlady' or 2 for 'CWCLafterdark': ")
-        if choice == "1":
-            self.subredditname = "countwithchickenlady"
-        elif choice == "2":
-            self.subredditname = "CWCLafterdark"
-        else:
-            print("Invalid input!")
-            raise ValueError("Invalid input! Please enter 1 or 2.")
-
         # Setup reddit bot connection
         self.reddit = praw.Reddit('bot1')
         self.reddit.validate_on_submit = True
-        self.subreddit = self.reddit.subreddit(self.subredditname)
 
-        if self.subredditname == "countwithchickenlady":
+        # Choose subreddit
+        choice = input("For which subreddit do you want to activate the bot? Enter 1 for 'countwithchickenlady' or 2 for 'CWCLafterdark': ")
+        if choice == "1":
+            self.subredditname = "countwithchickenlady"
             self.current_count_link = "https://www.reddit.com/r/countwithchickenlady/comments/1iulihu"
             self.target_post = self.reddit.submission(id='1iulihu')
-        elif self.subredditname == "CWCLafterdark":
+            self.db = "chicken_bot"
+        elif choice == "2":
+            self.subredditname = "CWCLafterdark"
             self.current_count_link = "https://www.reddit.com/r/CWCLafterdark/comments/1nygkqd/"
             self.target_post = self.reddit.submission(id='1nygkqd')
-
-        # Setup email connection
-        load_dotenv()
-        self.email_account = os.getenv('ACCOUNT')
-        self.email_app_password = os.getenv('PASSWORD')
-        self.email_receiver = os.getenv('RECEIVER')
-
-        # Setup database connection
-        if self.subredditname == "countwithchickenlady":
-            self.db = "chicken_bot"
-        elif self.subredditname == "CWCLafterdark":
             self.db = "chkcken_bot_18plus"
-        self.__connection_is_open = False
+        else:
+            print("Invalid input!")
+            raise ValueError("Invalid input! Please enter 1 or 2.")
+        
+        self.subreddit = self.reddit.subreddit(self.subredditname)
+
+    _connection_is_open = False
+    _keep_open = False
+    _call_stack = []
 
     def __del__(self):
         self.close_connection()
 
     def connection_is_open(self):
-        return self.__connection_is_open
+        return self._connection_is_open
     
     def open_connection(self):
-        if self.__connection_is_open:
+        if self._connection_is_open:
             return
-        self.__connection_is_open = True
-        self.__conn = sqlite3.connect(self.db+'.db')
-        self.__conn.row_factory = sqlite3.Row
-        self.__cursor = self.__conn.cursor()
+        self._connection_is_open = True
+        self._conn = sqlite3.connect(self.db+'.db')
+        self._conn.row_factory = sqlite3.Row
+        self._cursor = self._conn.cursor()
 
-    def handle_connection(self, keep_open = False):
+    def handle_connection(self, keep_open):
         if not keep_open:
             self.close_connection()
 
     def close_connection(self):
         if self.connection_is_open():
-            self.__conn.close()
-            self.__connection_is_open = False
+            self._conn.close()
+            self._connection_is_open = False
     
     def conn(self):
         self.open_connection()
-        return self.__conn
+        return self._conn
 
     def cursor(self):
         self.open_connection()
-        return self.__cursor
+        return self._cursor
         
-    def setup_database(self, keep_open = False):
+    def setup_database(self):
         self.cursor().execute('''
             CREATE TABLE IF NOT EXISTS chicken_posts (
                     id TEXT PRIMARY KEY,
@@ -116,62 +141,48 @@ class ChickenBot:
             )
         ''')
         self.conn().commit()
-        self.handle_connection(keep_open)
 
     def backup_database(self):
         shutil.copy2(self.db+'.db', f"{self.db} backup {datetime.now().strftime('%Y-%m-%d %H.%M.%S')}.db")
 
-    def fill_database_after_failure(self, keep_open = False):
+    def fill_database_after_failure(self):
+        # If the bot breaks, the posts aren't scanned for having the correct number anymore.
+        # Additionally, the post that shows the correct number, gets stuck.
+        # Many users will upload posts with the wrong count.
+        # If the bot is activated, it will remove all these posts.
+        # To avoid this (and register all recent posts as valid), run this function.
         for post in self.subreddit.new(limit=1000):  # Fetches the newest posts
             self.cursor().execute('''
                 INSERT OR IGNORE INTO chicken_posts (id, username, timestamp, approved, title)
                 VALUES (?, ?, ?, 1, ?)
             ''', (post.id, self.get_author(post), post.created_utc, post.title))
         self.conn().commit()
-        self.record_all_streaks(keep_open=True)
-        self.handle_connection(keep_open)
+        self.record_all_streaks()
 
-    def send_email(self, subject, body):
-        # Create email message
-        msg = MIMEMultipart()
-        msg["From"] = self.email_account
-        msg["To"] = self.email_receiver
-        msg["Subject"] = subject
-        msg.attach(MIMEText(body, "plain"))
-
-        # Connect to Gmail SMTP server and send email
-        try:
-            server = smtplib.SMTP("smtp.gmail.com", 587)
-            server.starttls()
-            server.login(self.email_account, self.email_app_password)
-            server.sendmail(self.email_account, self.email_receiver, msg.as_string())
-            server.quit()
-            print("Email sent successfully!")
-        except Exception as e:
-            print(f"Error sending email: {e}")
-
-    def get_all_posts(self, username, keep_open = False):
+    def get_all_posts(self, usernamee):
         posts = pd.read_sql("SELECT * FROM chicken_posts WHERE username = ?", self.conn(), params=(username,))
         deleted_posts = pd.read_sql("SELECT * FROM deleted_posts WHERE username = ?", self.conn(), params=(username,))
-        self.handle_connection(keep_open)
         return posts, deleted_posts
 
-    def get_all_users(self, keep_open = False):
+    def get_all_users(self):
         self.cursor().execute("SELECT DISTINCT username FROM chicken_posts")
         users = [row["username"] for row in self.cursor().fetchall()]
-        self.handle_connection(keep_open)
         return users
 
-    def is_user(self, username, keep_open = False):
-        return username in self.get_all_users(keep_open = keep_open)
+    def is_user(self, username):
+        return username in self.get_all_users()
     
-    def calculate_streak(self, username, timestamp = None, keep_open = False):
+    def calculate_streak(self, username, timestamp = None):
+        # Not that the streka is not recorded in the database! Use record_streak for that!
         if timestamp is None:
             timestamp = time.time()
 
         df = pd.read_sql("SELECT timestamp FROM chicken_posts WHERE username = ? AND timestamp <= ?", self.conn(), params=(username,timestamp))
         self.cursor().execute("SELECT * FROM COAD_posts WHERE username = ?", (username,))
         
+        # People who moved from r/CountOnceADay,
+        # were allowed to continue the streak that was built up over there.
+        # The COAD_streak is the streak that includes that previous streak.
         COAD_streak_info = self.cursor().fetchone()
 
         if COAD_streak_info:
@@ -214,18 +225,18 @@ class ChickenBot:
                 COAD_streak = COAD_streak_number
 
             for date in df["post_date"]:
-                if (date == today or date == yesterday) and last_date is None:
+                if (date == today or date == yesterday) and last_date is None: # This was the first post, and it was today or yesterday
                     streak = 1
                     last_date = date
-                elif last_date is not None:
-                    if date == last_date - timedelta(days=1):
+                elif last_date is not None: # This was not the first post
+                    if date == last_date - timedelta(days=1): # The previous post was yesterday
                         if has_COAD_streak and date == last_COAD_date:
                             COAD_streak = COAD_streak_number + streak
                         streak += 1
                         last_date = date
                     else:
                         break
-                else: # Last post was earlier than today or yesterday
+                else: # PRevious post was earlier than today or yesterday
                     streak = 0
                     break
             if has_COAD_streak and last_date is not None and last_COAD_date == last_date - timedelta(days=1):
@@ -233,10 +244,20 @@ class ChickenBot:
             max_streak = max(max_streak, streak)
             if has_COAD_streak:
                 max_COAD_streak = max(max_COAD_streak, COAD_streak)
-        self.handle_connection(keep_open)
         return max_streak, max_COAD_streak
 
-    def calculate_all_streaks(self, keep_open = False):
+    def record_streak(self, username):
+        self.cursor().execute("""
+            INSERT INTO user_streaks (timestamp, username, streak, COAD_streak)
+            VALUES (CURRENT_TIMESTAMP, ?, ?, ?)
+            ON CONFLICT(username) DO UPDATE SET
+            timestamp = CURRENT_TIMESTAMP,
+            streak = excluded.streak,
+            COAD_streak = excluded.COAD_streak
+        """, (username, *self.calculate_streak(username, keep_open=True)))
+        self.conn().commit()
+
+    def record_all_streaks(self):
         print("Calculating user streaks")
         
         users = self.get_all_users(keep_open=True)
@@ -247,26 +268,8 @@ class ChickenBot:
                 print(f"user {user_no+1} out of {len(users)}")
             streaks[user] = {}
             streaks[user]['normal'], streaks[user]['COAD'] = self.calculate_streak(user, keep_open=True)
-        print("Finished calculating user streaks")
-
-        self.handle_connection(keep_open)
-        return streaks
-
-    def record_streak(self, username, keep_open = False):
-        self.cursor().execute("""
-            INSERT INTO user_streaks (timestamp, username, streak, COAD_streak)
-            VALUES (CURRENT_TIMESTAMP, ?, ?, ?)
-            ON CONFLICT(username) DO UPDATE SET
-            timestamp = CURRENT_TIMESTAMP,
-            streak = excluded.streak,
-            COAD_streak = excluded.COAD_streak
-        """, (username, *self.calculate_streak(username, keep_open=True)))
-        self.conn().commit()
-        self.handle_connection(keep_open)
-
-    def record_all_streaks(self, keep_open = False):
-        print("Recording user streaks")
-        for user, streaks in self.calculate_all_streaks(keep_open=True).items():
+    
+        for user, streak in zip(users, streaks):
             self.cursor().execute("""
                 INSERT INTO user_streaks (timestamp, username, streak, COAD_streak)
                 VALUES (CURRENT_TIMESTAMP, ?, ?, ?)
@@ -274,34 +277,34 @@ class ChickenBot:
                 timestamp = CURRENT_TIMESTAMP,
                 streak = excluded.streak,
                 COAD_streak = excluded.COAD_streak
-            """, (user, streaks['normal'], streaks['COAD']))
+            """, (user, streak['normal'], streak['COAD']))
         
         self.conn().commit()
-        self.handle_connection(keep_open)
-
         print("Finished recording user streaks")
 
-    def record_post_streak(self, post_id, replace = True, keep_open = False):
+    def record_post_streak(self, post_id, replace = True):
+        # Records the streak at the moment the post was made
         self.cursor().execute(f"SELECT username, timestamp, current_streak, current_COAD_streak FROM chicken_posts WHERE id = ?", (post_id,))
         username, timestamp, streak, COAD_streak = self.cursor().fetchone()
         if not replace and streak is not None and COAD_streak is not None:
-            self.handle_connection(keep_open)
             return
         streak, COAD_streak = self.calculate_streak(username, timestamp=timestamp, keep_open=True)
         self.cursor().execute("UPDATE chicken_posts SET current_streak = ?, current_COAD_streak = ? WHERE id = ?", (streak, COAD_streak, post_id))
         self.conn().commit()
-        self.handle_connection(keep_open)
 
-    def record_post_streaks_user(self, username, keep_open = False):
+    def record_post_streaks_user(self, username):
         posts = pd.read_sql("SELECT id FROM chicken_posts WHERE username = ?", self.conn(), params=(username,))
         for i, post_id in enumerate(posts['id']):
             if (i+1) % 20 == 0:
                 print("Recording post streaks for user", username, "post", i+1, "out of", len(posts))
             self.record_post_streak(post_id, keep_open=True)
-        self.record_streak(username, keep_open = True)
-        self.handle_connection(keep_open)
+        self.record_streak(username)
 
-    def record_empty_post_streaks(self, batch_size = 500, keep_open = False):
+    def record_empty_post_streaks(self, batch_size = 500):
+        # batch_size makes sure that each time this function is called,
+        # only a small part of empty post streaks is recorded, to make sure
+        # it isn't too much work for the VM. This function should be called
+        # multiple times, until all empty post_streaks are recorded.
         posts = pd.read_sql("SELECT id FROM chicken_posts WHERE current_streak IS NULL OR current_COAD_streak IS NULL", self.conn())
         print(f"Recording empty post streaks: {min(batch_size,len(posts))} posts will be handled during this function call.")
         for i, post_id in enumerate(posts['id']):
@@ -315,10 +318,11 @@ class ChickenBot:
                 except:
                     print("Error, try again in 10 seconds")
                     time.sleep(10)
-        self.handle_connection(keep_open)
         print("Finished recording empty post streaks")
 
-    def record_post_statistic(self, post_id, keep_open = False):
+    def record_post_statistic(self, post_id):
+        # Record upvote and comment count.
+        # Used for post leaderboard.
         self.cursor().execute("SELECT 1 FROM chicken_posts WHERE id = ?",(post_id,))
         if (self.cursor().fetchone() is None):
             raise Exception(f"Post {post_id} has not been found in the database!")
@@ -329,9 +333,10 @@ class ChickenBot:
 
         self.cursor().execute("UPDATE chicken_posts SET comments = ?, upvotes = ? WHERE id = ?", (comments, upvotes, post_id))
         self.conn().commit()
-        self.handle_connection(keep_open)
 
     def record_post_statistics(self, n_days_history = 21):
+        # Record upvote and comment count for all posts in the past n_days_history days.
+        # Used for post leaderboard.
         posts = pd.read_sql("SELECT id FROM chicken_posts WHERE timestamp >= ? OR comments IS NULL OR upvotes IS NULL", self.conn(), params=(time.time()-n_days_history*24*60*60,))
         print(f'Recording post statistics for the past {n_days_history} days: {len(posts)} posts')
         for i, row in posts.iterrows():
@@ -339,20 +344,19 @@ class ChickenBot:
                 print(f"Post {i+1} out of {len(posts)}")
             while True:
                 try:
-                    self.record_post_statistic(row['id'],True)
+                    self.record_post_statistic(row['id'],keep_open=True)
                     break
                 except Exception as e:
                     print(e)
                     time.sleep(30)
         print('Finished recording post statistics')
 
-    def update_user_flair(self, username, keep_open = False):
+    def update_user_flair(self, username):
         self.cursor().execute("SELECT streak, COAD_streak FROM user_streaks WHERE username = ?", (username,))
         try:
             streak = max(self.cursor().fetchone())
         except Exception as e:
             print(f"Failed to fetch streak for {username}: {e}")
-            self.handle_connection(keep_open)
             return
         
         if self.subredditname == "countwithchickenlady":
@@ -379,9 +383,8 @@ class ChickenBot:
                 self.subreddit.flair.set(user, text=user_flair)
         except Exception as e:
             print(f"Failed to set flair for {username}: {e}")
-        self.handle_connection(keep_open)
 
-    def update_all_flair(self, keep_open = False):
+    def update_all_flair(self):
         # Update user flair
         print("Updating user flairs")
 
@@ -392,18 +395,24 @@ class ChickenBot:
                 print(f"user {user_no+1} out of {len(users)}")
             self.update_user_flair(user, keep_open=True)
 
-        self.handle_connection(keep_open)
         print("Finished updating user flairs")
 
     def get_author(self, submission):
         return submission.author.name if submission.author else "[deleted]"
 
-    def update_target_post(self, post_limit=8, keep_open = False):
+    def update_target_post(self, post_limit=8):
+        # Checks the most recent post_limit posts.
+        # Checks if it has been manually allowed by a moderator.
+        # Checks if it is already in the allowed posts database.
+        # Checks if they have the correct title.
+        # Checks if the user has not posted 3 times in the last 2 calendar days.
+        # Updates the user streak.
+        # Updates the post that tells the correct number.
         current_count = 0
         if self.subreddit == 'countwithchickenlady':
-            current_count = 19520 # edit to new value after bot failure
+            current_count = 20126 # edit to new value after bot failure
         elif self.subreddit == 'CWCLafterdark':
-            current_count = 355 # edit to new value after bot failure
+            current_count = 531 # edit to new value after bot failure
 
         print("New check")
         for submission in reversed(list(self.subreddit.new(limit=post_limit))):
@@ -454,8 +463,6 @@ class ChickenBot:
 
                                     print(f"Double post detected: {submission.title}")
 
-                                    self.send_email('Removed double post', f'I removed post {submission.title} by {self.get_author(submission)} because it was a double post. You can find the post here: https://www.reddit.com/{submission.permalink}.\nThe posts were as follows:\n\n{earlier_posts.to_string(index=False)}')
-
                                     comment_text = "This post has been removed because of your latest two or three posts, at least two have been on the same calendar day. You may post only once per calendar day. Please wait until the next calendar day to post again.\nThe posts were as follows:\n\n"
                                     now = time.time()
 
@@ -497,8 +504,6 @@ class ChickenBot:
                     if not approved and submission.approved_by is None:
                         print(f"Invalid post detected: {submission.title}")
 
-#                        self.send_email('Removed post', f'I removed post {submission.title} by {self.get_author(submission)} because it did not use the correct number. You can find the post here: https://www.reddit.com/{submission.permalink}.')
-
                         # Leave a comment explaining the removal
                         comment_text = (
                             f"This post has been removed because the correct next number was {current_count + 1}, but this post has '{post_number}' as title. Please check the most recent number before posting. You can find the correct number in [this]({self.current_count_link}) post.\n\nIt might be possible that someone else simply was slightly faster with their post.\n\nFeel free to post again with the correct new number.\n\n^(This action was performed automatically by a bot. If you think it made a mistake, contact the mods via modmail. The code for this bot is fully open source, and can be found [here](https://github.com/AartvB/ChickenBotOnceADay).)"
@@ -521,8 +526,6 @@ class ChickenBot:
             elif not approved and submission.approved_by is None:
                 print(f"Non-numeric post detected: {submission.title}")
 
-#                self.send_email('Removed post', f'I removed post {submission.title} by {self.get_author(submission)} because it did not use a number. You can find the post here: https://www.reddit.com/{submission.permalink}.')
-
                 # Leave a comment explaining the removal
                 comment_text = f"This post has been removed because the title must be a number. Please only post the next number in sequence. You can find the correct number in [this]({self.current_count_link}) post.\n\n^(This action was performed automatically by a bot. If you think it made a mistake, contact the mods via modmail. The code for this bot is fully open source, and can be found [here](https://github.com/AartvB/ChickenBotOnceADay).)"
 
@@ -531,9 +534,11 @@ class ChickenBot:
                 submission.mod.send_removal_message(comment_text)
 
         self.target_post.edit(f"The next number should be: [{current_count + 1}](https://www.reddit.com/r/{self.subredditname}/submit?title={current_count + 1})\n\n^(This comment is automatically updated by a bot. If you think it made a mistake, contact the mods via modmail. The code for this bot is fully open source, and can be found [here](https://github.com/AartvB/ChickenBotOnceADay).)")
-        self.handle_connection(keep_open)
 
-    def add_COAD_streak(self, keep_open = False):
+    def add_COAD_streak(self):
+        # People who moved from r/CountOnceADay,
+        # are allowed to continue the streak that was built up over there.
+        # This function can be used to add a COAD_streak.
         print("Enter the details of the COAD streak to be added below.")
         username = input("Username: ")
         post_id = input("Post_id of the latest COAD post: ")
@@ -547,67 +552,11 @@ class ChickenBot:
         
         self.record_streak(username,keep_open=True)
         self.update_user_flair(username, keep_open=True)
-        self.record_post_streaks_user(username,keep_open=True)
-
-        self.handle_connection(keep_open)
+        self.record_post_streaks_user(username)
 
         print(f"The COAD streak of {username} has been updated succesfully.")
 
-    def detect_close_posts(self, username, keep_open = False):
-        posts, deleted_posts = self.get_all_posts(username, keep_open=True)
-
-        posts["datetime"] = pd.to_datetime(posts["timestamp"], unit='s', utc=True)
-        deleted_posts["datetime"] = pd.to_datetime(deleted_posts["timestamp"], unit='s', utc=True)
-
-        posts['time_diff'] = posts['datetime'].diff().dt.total_seconds()/60*-1
-        close_posts = posts[posts['time_diff'] < 10]
-
-        self.handle_connection(keep_open)
-        return close_posts
-
-    def report_close_posts(self, username, keep_open = False):
-        close_posts = self.detect_close_posts(username, keep_open=True)
-        if len(close_posts) > 0:
-            result = f"User {username}.\n"
-            result += f"Close dates:\n{close_posts[['local_time','id']]}\n"
-            result += f"Posts of user {username}:\n"
-
-            posts = self.get_all_posts(username, keep_open=True)[0]
-            posts["local_time"] = pd.to_datetime(posts["timestamp"], unit='s', utc=True)
-            posts = posts.sort_values("local_time", ascending = False).copy()
-
-            for index, row in posts.iterrows():
-                result += f"Date/time: {row['local_time']}, post id: {row['id']}\n"
-
-            self.cursor().execute("SELECT streak, COAD_streak FROM user_streaks WHERE username = ?", (username,))
-
-            result += f"User {username} has the following streak: {max(self.cursor().fetchone())}\n"
-
-            result += posts['time_diff']
-        else:
-            result = f"{username} does not have any close posts."
-        self.handle_connection(keep_open)
-        return result
-
-    def detect_all_close_posts(self, users_to_skip = [], keep_open = False):
-        close_posts = {}
-        for i, user in enumerate(self.get_all_users()):
-            if user in users_to_skip:
-                continue
-            close_posts[user] = self.detect_close_posts(user,keep_open=True)
-        self.handle_connection(keep_open)
-        return close_posts
-    
-    def report_all_close_posts(self, users_to_skip = [], keep_open = False):
-        results = {}
-        for i, user in enumerate(self.get_all_users()):
-            if user in users_to_skip:
-                continue
-            results[user] = self.report_close_posts(user,keep_open=True)
-        self.handle_connection(keep_open)
-        return results
-
-    def check_player_streak(self, keep_open = False):
+    def check_player_streak(self):
         print("Enter the details of the player for whom you want to investigate the streak below.")
 
         username = input("The user is named: ")
@@ -646,9 +595,7 @@ class ChickenBot:
 
         print(f"User {username} has the following streak: {streak}")
 
-        self.handle_connection(keep_open)
-
-    def delete_post(self, keep_open = False):
+    def delete_post(self):
         post_id = input("The post to delete has id: ")
 
         self.cursor().execute("SELECT * FROM chicken_posts WHERE id = ?", (post_id,))
@@ -661,17 +608,17 @@ class ChickenBot:
         print("Deleted post from database, now updating user streaks and flair.")
 
         self.record_post_streaks_user(result[1],keep_open=True)
-        self.update_user_flair(result[1], keep_open = True)
+        self.update_user_flair(result[1])
 
-        self.handle_connection(keep_open)
         print(f"Post deleted succesfully: Post {post_id} created by u/{result[1]}")
 
-    def run_sql(self, query, keep_open = False):
+    def run_sql(self, query):
         self.cursor().execute(query)
         self.conn().commit()
-        self.handle_connection(keep_open)
 
-    def check_for_deleted_posts(self, keep_open=False):
+    def check_for_deleted_posts(self):
+        # If someone (including moderators) deletes a post within 10 minute of posting it,
+        # it doesn't count for the streak. Otherwise it will.
         print("Checking for deleted posts")
 
         current_time = int(time.time())
@@ -696,20 +643,20 @@ class ChickenBot:
                     self.update_user_flair(user, keep_open=True)
                     self.record_post_streaks_user(user,keep_open=True)
                 except Exception as e:
-                    self.send_email('Error in handling post deletion',f'An error occuered when I tried to handle the post deletion. Error message:\n{e}')
-
-        self.handle_connection(keep_open)
+                    print(f'An error occuered when I tried to handle the post deletion. Error message:\n{e}')
     
     def start_maintenance(self):
+        # Run this code if the bot is not running.
         print('Started maintenance')
         self.target_post.edit(f"The bot is currently under maintenance. Our apologies for the inconvenience. Please [sort by new](https://www.reddit.com/r/{self.subredditname}/new/) to see what the next number in the sequence should be, and use this number as the title for your new post.\n\n^(If you think the bot made a mistake, contact the mods via modmail. The code for this bot is fully open source, and can be found [here](https://github.com/AartvB/ChickenBotOnceADay).)")
 
-    def end_maintenance(self, keep_open=False):
+    def end_maintenance(self):
+        # Run this code if the bot was under maintenance for a short while.
         print('Ended maintenance')
-        self.update_target_post(post_limit=20, keep_open=True)
-        self.handle_connection(keep_open)
+        self.update_target_post(post_limit=20)
 
-    def update_count_leaderboard(self, keep_open=False):
+    def update_count_leaderboard(self):
+        # The leaderboard on the wiki that shows the people with the most posts.
         print("Updating count leaderboard")
 
         posts = pd.read_sql("SELECT username, COUNT(*) as counts FROM chicken_posts GROUP BY username ORDER BY counts DESC LIMIT 1000", self.conn())
@@ -721,9 +668,10 @@ class ChickenBot:
         wiki_text = "#All counters of our beautiful sub!\n\nThis shows the top 1000 posters of our sub!\n\n"+leaderboard
 
         self.subreddit.wiki['counts'].edit(wiki_text, reason = 'Hourly update')
-        self.handle_connection(keep_open)
 
-    def update_whole_counts_leaderboard(self, keep_open = False):
+    def update_whole_counts_leaderboard(self):
+        # The leaderboards on the wiki that shows the people who
+        # counted to a multiple of 10, 100, 1000 etc.
         print("Updating whole counts leaderboards")
         n_zeroes = 1
         while True:
@@ -752,12 +700,12 @@ class ChickenBot:
 
             self.subreddit.wiki[f'1{zeroes_string}s'].edit(wiki_text, reason = f'New 1{zeroes_string} number')
             n_zeroes += 1
-        self.handle_connection(keep_open)
 
-    def update_top_posts_leaderboards(self, keep_open=False):
+    def update_top_posts_leaderboards(self):
+        # The leaderboard on the wiki that shows the posts with the
+        # most upvotes and the most comments.
+
         print("Updating top posts leaderboards")
-
-        start_time = time.time()
 
         self.record_post_statistics()
 
@@ -801,21 +749,10 @@ class ChickenBot:
         wiki_text_upvotes = "#Top posts\n\nThis page shows the posts with the most upvotes of this sub!\n\nNote: Upvote count is stored locally, and will only be updated up to 21 days after the post is posted. Let us know (via mod mail) if the upvote count of a specific post has increase significantly since then, so we can update the upvote count manually.\n\n##Leaderboard\n"+appearences_upvotes_leaderboard+"\n\n##Upvotes\n"+upvote_leaderboard
         self.subreddit.wiki['most_upvotes'].edit(wiki_text_upvotes, reason = 'Daily update')
 
-        time_taken = time.time() - start_time
 
-        hours, rem = divmod(time_taken, 3600)
-        minutes, seconds = divmod(rem, 60)
-        hours = int(time_taken // 3600)
-        minutes = int((time_taken % 3600) // 60)
-        seconds = int(time_taken % 60)
-        self.send_email(
-            'Top posts leaderboards updated',
-            f'The top posts leaderboards of {self.subredditname} have been updated. It took {time_taken:.2f} seconds to update them. That is {hours}h {minutes}m {seconds}s'
-        )
+    def update_identical_digits_leaderboard(self):
+        # The leaderboard on the wiki that shows the posts with identical digits.
 
-        self.handle_connection(keep_open)
-
-    def update_identical_digits_leaderboard(self, keep_open=False):
         print("Updating identical digits leaderboard")
 
         posts = pd.read_sql("SELECT id, username, title, timestamp FROM chicken_posts", self.conn())
@@ -838,9 +775,9 @@ class ChickenBot:
         wiki_text = "#Identical digits\n\nThis page shows which users have counted to a number that has only identical digits, and how many times!\n\n"+leaderboard+"\n\n"+full_list
 
         self.subreddit.wiki['identical_digits'].edit(wiki_text, reason = 'New identical digit number')
-        self.handle_connection(keep_open)
 
-    def update_palindrome_leaderboard(self, keep_open=False):
+    def update_palindrome_leaderboard(self):
+        # The leaderboard on the wiki that shows the posts with titles that are palindromes.
         print("Updating palindrome leaderboard")
 
         posts = pd.read_sql("SELECT id, username, title, timestamp FROM chicken_posts", self.conn())
@@ -863,9 +800,9 @@ class ChickenBot:
         wiki_text = "#Palindromes\n\nThis page shows which users have counted to palindrome numbers (numbers that are the same backwards as forwards), and how many times!\n\n"+leaderboard+"\n\n"+full_list
 
         self.subreddit.wiki['palindrome_numbers'].edit(wiki_text, reason = 'New palindrome number')
-        self.handle_connection(keep_open)
 
-    def update_streak_leaderboard(self, keep_open=False):
+    def update_streak_leaderboard(self):
+        # The leaderboard on the wiki that shows the people with the highest streaks
         print("Updating streak leaderboard")
 
         current_streaks = pd.read_sql("SELECT username, streak, COAD_streak FROM user_streaks", self.conn())
@@ -904,7 +841,7 @@ class ChickenBot:
         max_COAD_streaks = max_COAD_streaks.to_markdown(index=False)
 
         wiki_text = "#Top streaks\n\nThis page shows the top streaks of users of our sub!\n\n##This sub only\n\nThis shows the top streaks built up in this sub only.\n\n###Currently running streaks\n"+current_normal_streaks+"\n\n###Top streaks ever\n"+max_normal_streaks
-        wiki_text += "\n\n##This sub and r/CountOnceADay\n\nThis shows the top streaks built up in this sub and possibly carried over from r/CountOnceADay.\n\n###Currently running streaks\n"+current_COAD_streaks+"\n\n###Top streaks ever\n"+max_COAD_streaks
+        if self.subreddit == 'countwithchickenlady':
+            wiki_text += "\n\n##This sub and r/CountOnceADay\n\nThis shows the top streaks built up in this sub and possibly carried over from r/CountOnceADay.\n\n###Currently running streaks\n"+current_COAD_streaks+"\n\n###Top streaks ever\n"+max_COAD_streaks
 
         self.subreddit.wiki['top_streaks'].edit(wiki_text, reason = 'Hourly update')
-        self.handle_connection(keep_open)

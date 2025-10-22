@@ -1,3 +1,5 @@
+# Update the leaderboards on the wiki once per day/hour
+
 from chickenbot import ChickenBot
 import schedule
 import time

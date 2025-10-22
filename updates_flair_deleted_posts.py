@@ -1,3 +1,8 @@
+# If someone (including moderators) deletes a post within 10 minute of posting it,
+# it doesn't count for the streak. This script checks this every 15 seconds.
+# Furthermore, this script updates the streaks of people every hour. For example,
+# if someone hasn't posted in a full day, their streak will be set to 0 again.
+
 from chickenbot import ChickenBot
 import schedule
 import time

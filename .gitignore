@@ -1,6 +1,4 @@
 *.db
-.env
 praw.ini
-single_execution.py
 __pycache__*
 *.bat

@@ -21,8 +21,10 @@ while True:
                     break
                 except Exception as e:
                     print(f"Error in execution: {e}")
+                    cb.close_connection()
                     time.sleep(30)
 
     except Exception as e:
         print(f"Error in submission stream: {e}")
+        cb.close_connection()
         time.sleep(30)

@@ -272,8 +272,8 @@ class ChickenBot(metaclass=AutoPostCallMeta):
                 try:
                     streaks[user]['normal'], streaks[user]['COAD'] = self.calculate_streak(user, keep_open=True)
                 except:
-                    print("Error, try again in 10 seconds")
-                    time.sleep(10)
+                    print("Error, try again in 500 seconds")
+                    time.sleep(500)
                 break
     
         for user, streak in streaks.items():
@@ -323,8 +323,8 @@ class ChickenBot(metaclass=AutoPostCallMeta):
                 try:
                     self.record_post_streak(post_id, keep_open=True)
                 except:
-                    print("Error, try again in 10 seconds")
-                    time.sleep(10)
+                    print("Error, try again in 500 seconds")
+                    time.sleep(500)
         print("Finished recording empty post streaks")
 
     def record_post_statistic(self, post_id):
@@ -355,7 +355,7 @@ class ChickenBot(metaclass=AutoPostCallMeta):
                     break
                 except Exception as e:
                     print(e)
-                    time.sleep(30)
+                    time.sleep(1000)
         print('Finished recording post statistics')
 
     def get_text_from_flair(self, text):
@@ -422,7 +422,7 @@ class ChickenBot(metaclass=AutoPostCallMeta):
         # Updates the post that tells the correct number.
         current_count = 0
         if self.subreddit == 'countwithchickenlady':
-            current_count = 20126 # edit to new value after bot failure
+            current_count = 21518 # edit to new value after bot failure
         elif self.subreddit == 'CWCLafterdark':
             current_count = 531 # edit to new value after bot failure
 

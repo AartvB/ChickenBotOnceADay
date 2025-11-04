@@ -158,7 +158,6 @@ class ChickenBot(metaclass=AutoPostCallMeta):
                 VALUES (?, ?, ?, 1, ?)
             ''', (post.id, self.get_author(post), post.created_utc, post.title))
         self.conn().commit()
-        self.record_all_streaks()
 
     def get_all_posts(self, username):
         posts = pd.read_sql("SELECT * FROM chicken_posts WHERE username = ?", self.conn(), params=(username,))
@@ -270,9 +269,10 @@ class ChickenBot(metaclass=AutoPostCallMeta):
             streaks[user] = {}
             while True:
                 try:
-                    streaks[user]['normal'], streaks[user]['COAD'] = self.calculate_streak(user, keep_open=True)
+                    streaks[user]['normal'], streaks[user]['COAD'] = self.calculate_streak(user, keep_open = False)
                 except:
                     print("Error, try again in 500 seconds")
+                    self.close_connection()
                     time.sleep(500)
                 break
     
@@ -324,6 +324,7 @@ class ChickenBot(metaclass=AutoPostCallMeta):
                     self.record_post_streak(post_id, keep_open=True)
                 except:
                     print("Error, try again in 500 seconds")
+                    self.close_connection()
                     time.sleep(500)
         print("Finished recording empty post streaks")
 
@@ -355,10 +356,13 @@ class ChickenBot(metaclass=AutoPostCallMeta):
                     break
                 except Exception as e:
                     print(e)
+                    self.close_connection()
                     time.sleep(1000)
         print('Finished recording post statistics')
 
     def get_text_from_flair(self, text):
+        if text is None:
+            return ''
         match = re.match(r'^Streak: \d+$', text)
         if match:
             return ''
@@ -405,7 +409,7 @@ class ChickenBot(metaclass=AutoPostCallMeta):
         for user_no, user in enumerate(users):                        
             if (user_no+1) % 20 == 0:
                 print(f"user {user_no+1} out of {len(users)}")
-            self.update_user_flair(user, keep_open=True)
+            self.update_user_flair(user, keep_open = False)
 
         print("Finished updating user flairs")
 
@@ -422,7 +426,7 @@ class ChickenBot(metaclass=AutoPostCallMeta):
         # Updates the post that tells the correct number.
         current_count = 0
         if self.subreddit == 'countwithchickenlady':
-            current_count = 21518 # edit to new value after bot failure
+            current_count = 21766 # edit to new value after bot failure
         elif self.subreddit == 'CWCLafterdark':
             current_count = 531 # edit to new value after bot failure
 
@@ -565,8 +569,20 @@ class ChickenBot(metaclass=AutoPostCallMeta):
         self.record_streak(username,keep_open=True)
         self.update_user_flair(username, keep_open=True)
         self.record_post_streaks_user(username)
-
         print(f"The COAD streak of {username} has been updated succesfully.")
+
+    def get_posts_after(self, post_id):
+        # Get the timestamp of the target post
+        self.cursor().execute("SELECT timestamp FROM chicken_posts WHERE id = ?", (post_id,))
+        result = self.cursor().fetchone()
+        if not result:
+            raise ValueError("Post ID not found in database")
+        target_timestamp = result[0]
+
+        # Count posts after this timestamp
+        self.cursor().execute("SELECT COUNT(*) FROM chicken_posts WHERE timestamp > ?", (target_timestamp,))
+        count = self.cursor().fetchone()[0]
+        return count
 
     def check_player_streak(self):
         print("Enter the details of the player for whom you want to investigate the streak below.")

@@ -13,8 +13,8 @@ def check_for_deleted_posts():
     cb.check_for_deleted_posts()
 
 def extra_streak_check():
-    cb.record_empty_post_streaks(keep_open=True)
-    cb.record_all_streaks(keep_open=True)
+    cb.record_empty_post_streaks()
+    cb.record_all_streaks()
     cb.update_all_flair()
 
 schedule.every(15).seconds.do(check_for_deleted_posts)

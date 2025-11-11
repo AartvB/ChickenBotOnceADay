@@ -584,6 +584,16 @@ class ChickenBot(metaclass=AutoPostCallMeta):
         count = self.cursor().fetchone()[0]
         return count
 
+    def add_post(self, post_id):
+        submission = self.reddit.submission(id=post_id)
+        self.cursor().execute('INSERT OR IGNORE INTO chicken_posts (id, username, timestamp, approved, title) VALUES (?, ?, ?, 1, ?)',
+                            (submission.id, self.get_author(submission), submission.created_utc, submission.title))
+        self.conn().commit()
+
+        self.record_streak(self.get_author(submission),keep_open=True)
+        self.update_user_flair(self.get_author(submission),keep_open=True)
+        self.record_post_streak(submission.id,replace=False,keep_open=False)
+
     def check_player_streak(self):
         print("Enter the details of the player for whom you want to investigate the streak below.")
 
@@ -604,7 +614,7 @@ class ChickenBot(metaclass=AutoPostCallMeta):
 
         print(f"Posts of user {username}:\n")
         for index, row in posts.iterrows():
-            print(f"Date/time: {row['local_time']}, post: https://www.reddit.com/r/{self.subreddit}/comments/{row['id']}, recorded streak: {row['current_streak']}")
+            print(f"Date/time: {row['local_time']}, post: https://www.reddit.com/r/{self.subreddit}/comments/{row['id']} ({row['title']}), recorded streak: {row['current_streak']}")
         print("")
 
         self.cursor().execute(f"SELECT * FROM COAD_posts WHERE username = ?", (username,))        

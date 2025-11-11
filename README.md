@@ -16,7 +16,7 @@ After you finished the setup (see above), you should be able to run this bot by 
 
 When the bot has been shut down for a while, before turning the bot on again, you should first run the fill_database_after_failure function.
 
-If someone complains about their user streak (usually via mod mail), you can run the ```check_player_streak``` function. It shows all posts of a user, and their streaks at the time of making the posts. This is very helpful with finding out why someones streak shows unexpected behavior. Usually the problem can be solved by deleting a post from the streak database, using the ```delete_post``` function.
+If someone complains about their user streak (usually via mod mail), you can run the ```check_player_streak``` function. It shows all posts of a user, and their streaks at the time of making the posts. This is very helpful with finding out why someones streak shows unexpected behavior. Usually the problem can be solved by deleting a post from the streak database, using the ```delete_post``` function. If a post must be added to the database, use the ```add_post``` function.
 
 People who started their streak on r/CountOnceADay, but transferred to this subreddit, are allowed to carry over their streak. If someone requests this, use the ```add_COAD_streak``` function.
 

@@ -600,6 +600,17 @@ class ChickenBot(metaclass=AutoPostCallMeta):
         username = input("The user is named: ")
         tz_name = input("The timezone is named: ")
 
+        if len(tz_name) == 0:
+            tz_name = 'Europe/Amsterdam'
+        else:
+            # Handle numeric timezone offsets
+            try:
+                offset = int(tz_name)
+                # Convert to Etc/GMT format (note: sign is reversed in Etc/GMT)
+                tz_name = f'Etc/GMT{-offset}' if offset != 0 else 'Etc/GMT+0'
+            except ValueError:
+                pass  # tz_name is already a valid timezone string
+
         posts, deleted_posts = self.get_all_posts(username, keep_open=True)
         self.cursor().execute("SELECT streak, COAD_streak FROM user_streaks WHERE username = ?", (username,))
         streak = max(self.cursor().fetchone())

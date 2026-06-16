@@ -10,7 +10,7 @@ from chickenbot import ChickenBot
 import time
 
 cb = ChickenBot()
-cb.update_target_post()
+cb.update_target_post(40)
 
 while True:
     try:

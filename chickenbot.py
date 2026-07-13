@@ -1,3 +1,4 @@
+import json
 import praw
 import sqlite3
 import pandas as pd
@@ -7,6 +8,7 @@ import time
 from datetime import datetime, timezone, timedelta
 import shutil
 import re
+import numpy as np
 
 def wrap_method(method):
     # (Almost) all methods are wrapped within this method.
@@ -894,3 +896,105 @@ class ChickenBot(metaclass=AutoPostCallMeta):
             wiki_text += "\n\n##This sub and r/CountOnceADay\n\nThis shows the top streaks built up in this sub and possibly carried over from r/CountOnceADay.\n\n###Currently running streaks\n"+current_COAD_streaks+"\n\n###Top streaks ever\n"+max_COAD_streaks
 
         self.subreddit.wiki['top_streaks'].edit(wiki_text, reason = 'Hourly update')
+        
+    def export_database_to_JSON(self):
+        # Export the database to JSON format, so that it can be used for the redis implementation of this bot.
+        print("Exporting database to JSON")
+
+        posts = pd.read_sql("SELECT * FROM chicken_posts", self.conn())
+        COAD_posts = pd.read_sql("SELECT * FROM COAD_posts", self.conn())
+        user_streaks = pd.read_sql("SELECT * FROM user_streaks", self.conn())
+        deleted_posts = pd.read_sql("SELECT * FROM deleted_posts", self.conn())
+
+        unique_users = posts['username'].unique()
+
+        print("Starting export to JSON")
+        result = {}
+        print("Exporting users")
+        result['users'] = [{'member': user, 'score': i} for i, user in enumerate(unique_users)]
+        print("Exporting posts")
+        result['posts'] = [{'member': f"t3_{row['id']}", 'score': row['timestamp']*1000} for _, row in posts.iterrows()]
+        print("Exporting early deleted posts")
+        result['early_deleted_posts'] = [{'member': f"t3_{row['id']}", 'score': row['timestamp']*1000} for _, row in deleted_posts.iterrows()]
+        print("Exporting current streaks")
+        result['current_streaks'] = [{'member': row['username'], 'score': row['streak']} for _, row in user_streaks.iterrows()]
+        print("Exporting current COAD streaks")
+        result['current_COAD_streaks'] = [{'member': row['username'], 'score': int(row['COAD_streak']) if not np.isnan(row['COAD_streak']) else 0} for _, row in user_streaks.iterrows()]
+        print("Exporting post streaks")
+        result['post_streaks'] = [{'member': f"t3_{row['id']}", 'score': row['current_streak']} for _, row in posts.iterrows()]
+        print("Exporting post COAD streaks")
+        result['post_COAD_streaks'] = [{'member': f"t3_{row['id']}", 'score': int(row['current_COAD_streak']) if not np.isnan(row['current_COAD_streak']) else 0} for _, row in posts.iterrows()]
+        print("Exporting top streaks")
+        top_streaks = pd.read_sql("SELECT username, MAX(current_streak) as streak FROM chicken_posts GROUP BY username ORDER BY streak DESC LIMIT 1000", self.conn())
+        result['top_streaks'] = [{'member': row['username'], 'score': row['streak']} for _, row in top_streaks.iterrows()]
+        print("Exporting top COAD streaks")
+        top_COAD_streaks = pd.read_sql("SELECT username, MAX(current_streak) AS max_current_streak, MAX(current_COAD_streak) as max_current_COAD_streak FROM chicken_posts GROUP BY username", self.conn())
+        result['top_COAD_streaks'] = [{'member': row['username'], 'score': max(row['max_current_streak'], row['max_current_COAD_streak'])} for _, row in top_COAD_streaks.iterrows()]
+        print("Exporting top upvoted posts")
+        top_upvoted_posts = pd.read_sql("SELECT id, upvotes FROM chicken_posts ORDER BY upvotes DESC LIMIT 1000", self.conn())
+        result['post_upvotes'] = [{'member': f"t3_{row['id']}", 'score': row['upvotes']} for _, row in top_upvoted_posts.iterrows()]
+        print("Exporting top commented posts")
+        top_commented_posts = pd.read_sql("SELECT id, comments FROM chicken_posts ORDER BY comments DESC LIMIT 1000", self.conn())
+        result['post_comments'] = [{'member': f"t3_{row['id']}", 'score': row['comments']} for _, row in top_commented_posts.iterrows()]
+        print("Exporting posts per user")
+        result['posts_per_user'] = [{'member': row['username'], 'score': row['counts']} for _, row in pd.read_sql("SELECT username, COUNT(*) as counts FROM chicken_posts GROUP BY username", self.conn()).iterrows()]
+
+        print("Exporting posts with identical digits")
+        identical_posts = posts[posts['title'].str.fullmatch(r'(\d)\1*')].copy()
+        identical_posts['title'] = identical_posts['title'].astype('int64')
+        identical_posts = identical_posts.loc[identical_posts.groupby('title')['timestamp'].idxmin().values]
+        result['identical_digits_posts'] = [{'member': f"t3_{row['id']}", 'score': row['title']} for _, row in identical_posts.iterrows()]
+        print("Exporting users with identical digits posts")
+        identical_posts_count = identical_posts['username'].value_counts()
+        result['identical_digits_users'] = [{'member': user, 'score': count} for user, count in identical_posts_count.items()]
+
+        print("Exporting palindrome posts")
+        palindrome_posts = posts[posts['title'] == posts['title'].str[::-1]].copy()
+        palindrome_posts['title'] = palindrome_posts['title'].astype('int64')
+        palindrome_posts = palindrome_posts.loc[palindrome_posts.groupby('title')['timestamp'].idxmin().values]
+        result['palindrome_posts'] = [{'member': f"t3_{row['id']}", 'score': row['title']} for _, row in palindrome_posts.iterrows()]
+        print("Exporting users with palindrome posts")
+        palindrome_posts_count = palindrome_posts['username'].value_counts()
+        result['palindrome_users'] = [{'member': user, 'score': count} for user, count in palindrome_posts_count.items()]        
+
+        print("Exporting current count")
+        result['current_count'] = int(pd.read_sql("SELECT title FROM chicken_posts ORDER BY timestamp DESC LIMIT 1", self.conn()).iloc[0]['title'])
+
+        print("Exporting posts per user")
+        result['posts_of'] = {}
+        for user in unique_users:
+            user_posts = posts[posts['username'] == user]
+            result['posts_of'][user] = [{'member': f"t3_{row['id']}", 'score': row['timestamp']*1000} for _, row in user_posts.iterrows()]
+
+        print("Exporting whole counts")
+        result['whole_count_posts'] = {}
+        result['whole_count_users'] = {}
+        n_zeroes = 1
+        while True:
+            zeroes_string = n_zeroes*'0'
+
+            whole_count_posts = pd.read_sql("SELECT username, title, id, timestamp FROM chicken_posts WHERE title LIKE ?", self.conn(),params=(f"%{zeroes_string}",))
+            if (len(whole_count_posts) == 0):
+                break
+            whole_count_posts['title'] = whole_count_posts['title'].astype('int64')
+            whole_count_posts = whole_count_posts.loc[whole_count_posts.groupby('title')['timestamp'].idxmin().values]
+            result['whole_count_posts'][f'1{zeroes_string}'] = [{'member': f"t3_{row['id']}", 'score': row['title']} for _, row in whole_count_posts.iterrows()]
+            whole_count_posts_count = whole_count_posts['username'].value_counts()
+            result['whole_count_users'][f'1{zeroes_string}'] = [{'member': user, 'score': count} for user, count in whole_count_posts_count.items()]    
+
+            n_zeroes += 1
+
+        print("Exporting post info")
+        result['post_info'] = {}
+        for post in posts.itertuples():
+            result['post_info'][f"t3_{post.id}"] = json.dumps({'authorName': post.username, 'postNumber': post.title, 'date': datetime.fromtimestamp(post.timestamp, tz=timezone.utc).strftime('%Y-%m-%d')})
+
+        print("Exporting COAD streaks")
+        result['other_streaks_of'] = {}
+        for coad_post in COAD_posts.itertuples():
+            post = self.reddit.submission(id=coad_post.post_id)
+            result['other_streaks_of'][coad_post.username] = json.dumps([{'streak': coad_post.streak, 'source':'COAD', 'timestamp': int(post.created_utc*1000)}])
+
+        print("Writing to file")
+        with open('chickenbot_database.json', 'w') as f:
+            json.dump(result, f, indent=2)

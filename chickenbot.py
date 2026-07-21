@@ -306,7 +306,14 @@ class ChickenBot(metaclass=AutoPostCallMeta):
         for i, post_id in enumerate(posts['id']):
             if (i+1) % 20 == 0:
                 print("Recording post streaks for user", username, "post", i+1, "out of", len(posts))
-            self.record_post_streak(post_id, keep_open=True)
+                while True:
+                    try:
+                        self.record_post_streak(post_id, keep_open=True)
+                        break
+                    except Exception as e:
+                        print(f"Error at post {i+1}, try again in 30 seconds")
+                        print(f"Exception: {e}")
+                        time.sleep(30)
         self.record_streak(username)
 
     def record_empty_post_streaks(self, batch_size = 500):

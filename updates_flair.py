@@ -9,19 +9,14 @@ import time
 
 cb = ChickenBot()
 
-def check_for_deleted_posts():
-    cb.check_for_deleted_posts()
-
 def extra_streak_check():
     cb.record_empty_post_streaks()
     cb.record_all_streaks()
     cb.update_all_flair()
 
-schedule.every(15).seconds.do(check_for_deleted_posts)
 schedule.every(1).hour.do(extra_streak_check)
 
 # Run the first check immediately
-check_for_deleted_posts()
 extra_streak_check()
 
 while True:

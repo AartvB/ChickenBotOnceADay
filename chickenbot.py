@@ -684,7 +684,13 @@ class ChickenBot(metaclass=AutoPostCallMeta):
         for _, row in df.iterrows():
             post_id = row['id']
             user = row['username']
-            submission = self.reddit.submission(id=post_id)
+            while True:
+                try:
+                    submission = self.reddit.submission(id=post_id)
+                    break
+                except Exception as e:
+                    print(f"Error occurred while fetching submission {post_id}: {e}. Trying again in 10 seconds.")
+                    time.sleep(10)  # Wait a bit before retrying
 
             print(f"Checking post {submission.title}")
             if submission.selftext == "[deleted]" or submission.author is None:

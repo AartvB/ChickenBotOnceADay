@@ -705,7 +705,7 @@ class ChickenBot(metaclass=AutoPostCallMeta):
                     self.update_target_post(keep_open=True)
                     self.record_streak(user,keep_open=True)
                     self.update_user_flair(user, keep_open=True)
-                    self.record_post_streaks_user(user,keep_open=True)
+                    self.record_post_streaks_user(user,keep_open=False)
                 except Exception as e:
                     print(f'An error occuered when I tried to handle the post deletion. Error message:\n{e}')
     

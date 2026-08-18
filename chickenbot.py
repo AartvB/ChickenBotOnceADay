@@ -306,14 +306,14 @@ class ChickenBot(metaclass=AutoPostCallMeta):
         for i, post_id in enumerate(posts['id']):
             if (i+1) % 20 == 0:
                 print("Recording post streaks for user", username, "post", i+1, "out of", len(posts))
-                while True:
-                    try:
-                        self.record_post_streak(post_id, keep_open=True)
-                        break
-                    except Exception as e:
-                        print(f"Error at post {i+1}, try again in 30 seconds")
-                        print(f"Exception: {e}")
-                        time.sleep(30)
+            while True:
+                try:
+                    self.record_post_streak(post_id, keep_open=True)
+                    break
+                except Exception as e:
+                    print(f"Error at post {i+1}, try again in 30 seconds")
+                    print(f"Exception: {e}")
+                    time.sleep(30)
         self.record_streak(username)
 
     def record_empty_post_streaks(self, batch_size = 500):
@@ -666,6 +666,7 @@ class ChickenBot(metaclass=AutoPostCallMeta):
         print("Deleted post from database, now updating user streaks and flair.")
 
         self.record_post_streaks_user(result[1],keep_open=True)
+        self.record_streak(result[1],keep_open=True)
         self.update_user_flair(result[1])
 
         print(f"Post deleted succesfully: Post {post_id} created by u/{result[1]}")
